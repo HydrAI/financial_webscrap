@@ -63,13 +63,14 @@ except Exception:
 MWORKERS = 4
 FILENAME_STR_SAVE = 'macro2'
 LSTNBR = 'gnews'
-year_min = 2025
+year_min = 2024
 year_max = 2025
 
 SOURCES = [
     "ScienceDirect.com", "nature.com", "arxiv.org", "papers.ssrn.com", "springer.com",
     "researchgate.net", "tandfonline.com", "udemy.com", "emerald.com", "mdpi.com",
-    "onlinelibrary.wiley.com", "journals.sagepub.com",
+    "onlinelibrary.wiley.com", "journals.sagepub.com","linkedin.com","x.com","youtube.com","glassdoor.com",
+    "reddit.com","facebook.com",
 ]
 SOURCE_MODE = "exclude"  # "include" or "exclude"
 LANG = 'en'
