@@ -1,0 +1,15 @@
+20250812
+
+new best working code is (base) C:\_T\code\202508_wscrap>python 20250811_scrapping_news.py
+
+
+pdf parsing and it seems better full text
+
+Still need to adapt and remove the column scrap type which is not in the others parquets files
+
+Still need to test the 3 pass things that looks like an interesting options when behind paywall
+
+still need to improve on Bloomberg on other website, in order to improve the click I am not a robot approach
+
+---- debut for weirds error Original exception(s) from parser:
+ AssertionError: expected name token at '<![   f s     ǝS?Ǽh '

@@ -78,8 +78,8 @@ except Exception:
 MWORKERS = 2
 FILENAME_STR_SAVE = 'macro3'
 LSTNBR = 'gnews'
-year_min = 2025
-year_max = 2025
+year_min = 2020
+year_max = 2024
 
 SOURCES = [
     "ScienceDirect.com", "nature.com", "arxiv.org", "papers.ssrn.com", "springer.com",
@@ -125,15 +125,14 @@ HEADERS = {
     )
 }
 
-# ---- RATE LIMIT & COOLDOWN ----
 BACKOFF_LOCK = threading.Lock()
 BACKOFF_UNTIL = 0
 BACKOFF_INCREMENT = 60 * 60
 BACKOFF_FIRST = 61 * 60
 
-LAST_429 = {}  # domain -> last timestamp of 429
+LAST_429 = {}
 CACHE_DOMAIN = "webcache.googleusercontent.com"
-CACHE_COOLDOWN_MIN = 180  # minutes
+CACHE_COOLDOWN_MIN = 180
 
 PAYWALL_DOMAINS = {
     "www.reuters.com","reuters.com","www.wsj.com","wsj.com",
@@ -141,7 +140,6 @@ PAYWALL_DOMAINS = {
     "www.ft.com","ft.com","www.economist.com","economist.com"
 }
 
-# ----------------- HELPERS -----------------
 def wait_if_in_backoff():
     now = time.time()
     with BACKOFF_LOCK:
@@ -156,9 +154,7 @@ def mark_429(domain: str):
 
 def too_many_recent_429(domain: str, cooldown_minutes: int = CACHE_COOLDOWN_MIN) -> bool:
     t = LAST_429.get(domain)
-    if not t:
-        return False
-    return (time.time() - t) < (cooldown_minutes * 60)
+    return t and (time.time() - t) < (cooldown_minutes * 60)
 
 def extract_domain(u: str) -> str:
     try: return urlparse(u).netloc
@@ -167,7 +163,7 @@ def extract_domain(u: str) -> str:
 def is_pdf_url(u: str) -> bool:
     try:
         path = urlparse(u).path.lower()
-        return path.endswith(".pdf") or ".pdf" in path
+        return path.endswith(".pdf") or ".pdf" in path or ".pdf.ashx" in path
     except Exception:
         return False
 
@@ -193,9 +189,7 @@ def convert_relative_date(date_str):
 def is_consent_page(text):
     return "consent.google.com" in text or "window['ppConfig']" in text
 
-# ----------------- REQUESTS -----------------
 def safe_request_global(session, url, **kwargs):
-    """Use for Google search; triggers global backoff on 409/429."""
     global BACKOFF_UNTIL
     while True:
         wait_if_in_backoff()
@@ -209,7 +203,6 @@ def safe_request_global(session, url, **kwargs):
             logger.info(f"[RATE LIMIT] {resp.status_code} {url} → backoff {int(increment/60)} min.")
 
 def safe_request_nobackoff(session, url, **kwargs):
-    """For articles/caches. On 409/429 mark domain cooldown and return None."""
     try:
         resp = session.get(url, **kwargs)
         if resp.status_code in (409, 429):
@@ -224,7 +217,6 @@ def safe_request_nobackoff(session, url, **kwargs):
         logger.error(f"[ARTICLE ERROR] {url}: {e}")
         return None
 
-# ----------------- HTML TEXT EXTRACTION -----------------
 _BLOCK_SELECTORS = [
     "article", "main", "div[itemprop='articleBody']", "div#main", "div.content",
     "div.article", "div.post", "section.article", "section.content"
@@ -235,21 +227,30 @@ def _clean_soup(soup: BeautifulSoup):
         tag.decompose()
 
 def _extract_text_from_html(html: str, limit: int = 9000) -> str:
-    soup = BeautifulSoup(html, "html.parser")
+    try:
+        soup = BeautifulSoup(html, "html.parser")
+    except Exception:
+        try:
+            soup = BeautifulSoup(html, "lxml")
+        except Exception:
+            logger.error("[BS4 ERROR] Failed to parse HTML with all parsers.")
+            return ""
+
     _clean_soup(soup)
 
-    # Prefer structured containers
     chunks = []
     for sel in _BLOCK_SELECTORS:
         for blk in soup.select(sel):
-            for el in blk.find_all(["p","li","h2","h3"]):
+            for el in blk.find_all(["p", "li", "h2", "h3"]):
                 txt = el.get_text(" ", strip=True)
-                if txt: chunks.append(txt)
+                if txt:
+                    chunks.append(txt)
+
     if not chunks:
-        # Fallback: all meaningful <p> across the page
         for p in soup.find_all("p"):
             txt = p.get_text(" ", strip=True)
-            if txt: chunks.append(txt)
+            if txt:
+                chunks.append(txt)
 
     text = " ".join(chunks).strip()
     if not text:
@@ -259,65 +260,21 @@ def _extract_text_from_html(html: str, limit: int = 9000) -> str:
         return (cut + ".") if cut else text[:limit]
     return text
 
-# ----------------- PDF PARSING -----------------
-def _fetch_bytes(session, url, timeout=30):
-    r = safe_request_nobackoff(session, url, timeout=timeout, stream=True)
-    if r is None: return None
-    try:
-        return r.content
-    except Exception:
-        return None
-
-def parse_pdf_pymupdf(data: bytes, limit=9000) -> str:
-    try:
-        if not _HAS_PYMUPDF: return ""
-        doc = fitz.open(stream=data, filetype="pdf")
-        parts = []
-        for page in doc:
-            parts.append(page.get_text())
-            if sum(len(p) for p in parts) >= limit: break
-        text = " ".join(p.strip() for p in parts if p and p.strip())
-        return text[:limit]
-    except Exception:
-        return ""
-
-def parse_pdf_pdfminer(data: bytes, limit=9000) -> str:
-    try:
-        if not _HAS_PDFMINER: return ""
-        # pdfminer expects file-like; use temp bytes through high-level API by writing to tmp file is heavy,
-        # but we can pass via a BytesIO using a small shim:
-        import io, tempfile, os
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
-            tmp.write(data)
-            tmp_path = tmp.name
-        try:
-            text = pdfminer_extract_text(tmp_path) or ""
-        finally:
-            try: os.remove(tmp_path)
-            except Exception: pass
-        return text[:limit]
-    except Exception:
-        return ""
-
-def get_pdf_text(url: str) -> (str, str):
-    session = requests.Session(); session.headers.update(HEADERS)
-    data = _fetch_bytes(session, url, timeout=40)
-    if not data:
-        return "", "pdf_fetch_failed"
-    txt = parse_pdf_pymupdf(data)
-    if txt:
-        return txt, "pdf_pymupdf"
-    txt = parse_pdf_pdfminer(data)
-    if txt:
-        return txt, "pdf_pdfminer"
-    return "", "pdf_parse_failed"
-
-# ----------------- FALLBACK FETCHERS -----------------
 def get_full_article_requests(url: str, timeout: int = 25) -> (str, str):
     s = requests.Session(); s.headers.update(HEADERS)
     r = safe_request_nobackoff(s, url, timeout=timeout)
     if r is None: return "", "requests_fail"
-    return _extract_text_from_html(r.text), "requests_html"
+
+    try:
+        html = r.text
+    except Exception:
+        try:
+            html = r.content.decode("utf-8", errors="replace")
+        except Exception as e:
+            logger.error(f"[DECODE ERROR] {url}: {e}")
+            return "", "decode_fail"
+
+    return _extract_text_from_html(html), "requests_html"
 
 def get_cached_article(url: str, timeout: int = 20) -> (str, str):
     if too_many_recent_429(CACHE_DOMAIN):
@@ -348,40 +305,16 @@ def get_full_article_playwright(url: str, timeout_ms: int = 60000) -> (str, str)
         logger.info(f"[PLAYWRIGHT] Fallback failed for {url}: {e}")
         return "", "playwright_fail"
 
-def get_full_article_crawl4ai(url: str) -> (str, str):
-    if not _HAS_CRAWL4AI:
-        return "", "crawl4ai_unavailable"
-    async def _run():
-        cfg = CrawlerRunConfig()
-        bcfg = BrowserConfig()
-        async with AsyncWebCrawler(config=bcfg) as crawler:
-            res = await crawler.arun(url=url, config=cfg)
-            return res.cleaned_html or res.html or ""
-    try:
-        html = asyncio.run(_run())
-        return _extract_text_from_html(html), "crawl4ai"
-    except Exception as e:
-        logger.info(f"[CRAWL4AI] Fallback failed for {url}: {e}")
-        return "", "crawl4ai_fail"
-
-# ----------------- ORCHESTRATOR -----------------
 def get_full_article_parallel(url: str) -> (str, str):
     domain = extract_domain(url)
 
-    # PDFs: parse, skip Playwright
     if is_pdf_url(url):
-        txt, m = get_pdf_text(url)
-        if txt: return txt, m
-        # try cache (sometimes PDFs have HTML viewers)
-        txt, m2 = get_cached_article(url)
-        return (txt, m2) if txt else ("", "pdf_all_failed")
+        return "", "pdf_skipped"
 
-    # First: direct requests
     txt, m = get_full_article_requests(url)
     if len(txt) >= 200:
         return txt, m
 
-    # Paywall strategy: no Playwright; cache sparingly
     if domain in PAYWALL_DOMAINS:
         if not too_many_recent_429(CACHE_DOMAIN):
             txt2, m2 = get_cached_article(url)
@@ -389,25 +322,18 @@ def get_full_article_parallel(url: str) -> (str, str):
                 return txt2, m2
         return (txt if txt else ""), ("requests_html_weak" if txt else "skip_paywall")
 
-    # Non-paywall: try cache → crawl4ai → playwright → last direct retry
     if not too_many_recent_429(CACHE_DOMAIN):
         txt2, m2 = get_cached_article(url)
         if len(txt2) >= 200:
             return txt2, m2
 
-    txt3, m3 = get_full_article_crawl4ai(url)
+    txt3, m3 = get_full_article_playwright(url)
     if len(txt3) >= 200:
         return txt3, m3
 
-    txt4, m4 = get_full_article_playwright(url)
-    if len(txt4) >= 200:
-        return txt4, m4
-
-    # last retry
     txt5, m5 = get_full_article_requests(url)
     return (txt5, m5 if txt5 else "empty")
 
-# ----------------- SEARCH: GOOGLE NEWS -----------------
 def fetch_google_news_results(query_str, year_min, year_max, sources_list=None, filter_mode="include", language="en"):
     session = requests.Session(); session.headers.update(HEADERS)
     results = []
@@ -424,8 +350,6 @@ def fetch_google_news_results(query_str, year_min, year_max, sources_list=None, 
         f"&tbs=cdr:1,cd_min:{year_min},cd_max:{year_max}"
     )
     resp = safe_request_global(session, url, timeout=20)
-    logger.info(f"[GOOGLE] Status Code: {resp.status_code}")
-
     if is_consent_page(resp.text):
         logger.info("Consent page hit — resetting session with SOCS cookie.")
         session.cookies.clear()
@@ -446,10 +370,9 @@ def fetch_google_news_results(query_str, year_min, year_max, sources_list=None, 
         src = el.select_one(".NUnG9d span").get_text() if el.select_one(".NUnG9d span") else "Unknown Source"
         results.append({"company": query_str, "title": title, "link": link, "snippet": snippet, "date": date, "source": src})
 
-    time.sleep(random.uniform(55, 95))  # longer random sleep to reduce blocks
+    time.sleep(random.uniform(55, 95))
     return pd.DataFrame(results)
 
-# ----------------- MAIN -----------------
 def run():
     all_dfs = []
     query_counter = 0
@@ -495,3 +418,5 @@ def run():
 
 if __name__ == "__main__":
     run()
+
+
