@@ -5,15 +5,13 @@
 ```mermaid
 %%{init: {'theme': 'base', 'themeVariables': {'primaryColor': '#4a90d9', 'lineColor': '#5c6bc0', 'fontSize': '14px'}}}%%
 flowchart LR
-    A([" 📄 Query File "]):::blue --> B([" 🔍 DDG Search "]):::orange
-    B --> C([" 🌐 Async Fetch "]):::purple
-    C --> D([" 📝 Extract "]):::green
-    D --> E([" 💾 Store "]):::red
+    A([" 📄 Query File\n<i>one per line</i> "]):::blue
+    B([" 🔍 DDG Search\n<i>text / news · retry</i> "]):::orange
+    C([" 🌐 Async Fetch\n<i>aiohttp · throttle · Tor</i> "]):::purple
+    D([" 📝 Extract\n<i>trafilatura · pdfplumber</i> "]):::green
+    E([" 💾 Dedup + Store\n<i>Parquet · JSONL · checkpoint</i> "]):::red
 
-    B -.-|"text / news\nretry + backoff\nadaptive cooldown"| B
-    C -.-|"aiohttp\nfingerprints\nthrottle\nrobots.txt\nTor"| C
-    D -.-|"trafilatura\npdfplumber\ncleanup\ndate filter"| D
-    E -.-|"URL + SHA256 dedup\nParquet + JSONL\ncheckpoint"| E
+    A --> B --> C --> D --> E
 
     classDef blue fill:#4a90d9,stroke:#2c5f8a,color:#fff,stroke-width:2px
     classDef orange fill:#f5a623,stroke:#c47d0e,color:#fff,stroke-width:2px
