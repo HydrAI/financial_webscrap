@@ -278,16 +278,21 @@ For detailed troubleshooting, see the [User Guide — Troubleshooting & FAQ](doc
 
 ## Architecture
 
-```
-Query File ──> DDG Search ──> Async Fetch ──> Extract ──> Dedup + Store
-                (text/news     (aiohttp,       (trafilatura,   (URL+SHA256,
-                 retry,         fingerprints,    pdfplumber,     Parquet,
-                 cooldown)      throttle,        cleanup,        JSONL,
-                                robots.txt,      date filter)    checkpoint)
-                                Tor)
+```mermaid
+flowchart LR
+    A["📄 Query File\nOne query per line"] --> B["🔍 DDG Search\ntext / news mode\nretry + cooldown"]
+    B --> C["🌐 Async Fetch\naiohttp + fingerprints\nthrottle + robots.txt\noptional Tor"]
+    C --> D["📝 Extract\ntrafilatura 2-pass\npdfplumber\ncleanup + date filter"]
+    D --> E["💾 Dedup + Store\nURL + SHA256 dedup\nParquet + JSONL\ncheckpoint"]
+
+    style A fill:#4a90d9,stroke:#2c5f8a,color:#fff
+    style B fill:#f5a623,stroke:#c47d0e,color:#fff
+    style C fill:#7b68ee,stroke:#5a4bc7,color:#fff
+    style D fill:#50c878,stroke:#3a9a5c,color:#fff
+    style E fill:#e74c3c,stroke:#c0392b,color:#fff
 ```
 
-The pipeline is modular — each stage is an independent module under `src/financial_scraper/`. See [`docs/architecture.md`](docs/architecture.md) for the full module map and design rationale.
+The pipeline is modular — each stage is an independent module under `src/financial_scraper/`. See [`docs/architecture.md`](docs/architecture.md) for the full module map, data flow types, and design rationale.
 
 ---
 
