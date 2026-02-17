@@ -46,6 +46,23 @@ Before installing financial-scraper, make sure you have:
 
 ## Installation
 
+```mermaid
+%%{init: {'theme': 'base', 'themeVariables': {'fontSize': '13px'}}}%%
+flowchart LR
+    A(["1. Clone repo"]):::blue --> B(["2. Create venv"]):::orange
+    B --> C(["3. pip install -e ."]):::purple
+    C --> D(["4. Verify\n--help"]):::green
+
+    classDef blue fill:#4a90d9,stroke:#2c5f8a,color:#fff,stroke-width:2px
+    classDef orange fill:#f5a623,stroke:#c47d0e,color:#fff,stroke-width:2px
+    classDef purple fill:#7b68ee,stroke:#5a4bc7,color:#fff,stroke-width:2px
+    classDef green fill:#50c878,stroke:#3a9a5c,color:#fff,stroke-width:2px
+
+    linkStyle 0 stroke:#5c6bc0,stroke-width:3px
+    linkStyle 1 stroke:#5c6bc0,stroke-width:3px
+    linkStyle 2 stroke:#5c6bc0,stroke-width:3px
+```
+
 ### Step 1: Clone the repository
 
 ```bash
@@ -100,6 +117,23 @@ python -m pytest tests/ -v
 ---
 
 ## Your First Scrape
+
+```mermaid
+%%{init: {'theme': 'base', 'themeVariables': {'fontSize': '13px'}}}%%
+flowchart LR
+    A(["1. 📝 Write\nqueries.txt"]):::blue --> B(["2. ▶️ Run\nfinancial-scraper"]):::orange
+    B --> C(["3. 📊 Watch\nlogs"]):::purple
+    C --> D(["4. 📂 Read\nParquet output"]):::green
+
+    classDef blue fill:#4a90d9,stroke:#2c5f8a,color:#fff,stroke-width:2px
+    classDef orange fill:#f5a623,stroke:#c47d0e,color:#fff,stroke-width:2px
+    classDef purple fill:#7b68ee,stroke:#5a4bc7,color:#fff,stroke-width:2px
+    classDef green fill:#50c878,stroke:#3a9a5c,color:#fff,stroke-width:2px
+
+    linkStyle 0 stroke:#5c6bc0,stroke-width:3px
+    linkStyle 1 stroke:#5c6bc0,stroke-width:3px
+    linkStyle 2 stroke:#5c6bc0,stroke-width:3px
+```
 
 ### Step 1: Create a query file
 
@@ -156,6 +190,40 @@ print(df[["company", "source", "title"]].head(10))
 ---
 
 ## Understanding the Output
+
+```mermaid
+%%{init: {'theme': 'base', 'themeVariables': {'fontSize': '13px'}}}%%
+flowchart TD
+    subgraph output_dir["&nbsp; 📁 runs/ &nbsp;"]
+        direction TB
+        TS["📁 20260215_143000/"]:::folder
+        PQ["📊 scrape_20260215_143000<b>.parquet</b>\n<i>Main output · columnar · snappy compression</i>"]:::parquet
+        JL["📄 scrape_20260215_143000<b>.jsonl</b>\n<i>Optional · one JSON object per line</i>"]:::jsonl
+
+        TS --> PQ
+        TS --> JL
+    end
+
+    PQ --> COLS
+
+    subgraph COLS["&nbsp; 📋 Parquet Schema &nbsp;"]
+        direction LR
+        C1["<b>company</b>\nstr · search query"]:::col
+        C2["<b>title</b>\nstr · page title"]:::col
+        C3["<b>link</b>\nstr · source URL"]:::col
+        C4["<b>date</b>\ntimestamp"]:::col
+        C5["<b>source</b>\nstr · domain"]:::col
+        C6["<b>full_text</b>\nstr · extracted text"]:::col
+    end
+
+    classDef folder fill:#fff3e0,stroke:#f5a623,stroke-width:2px
+    classDef parquet fill:#e8f5e9,stroke:#388e3c,stroke-width:2px
+    classDef jsonl fill:#e3f2fd,stroke:#1565c0,stroke-width:2px
+    classDef col fill:#f5f5f5,stroke:#9e9e9e,stroke-width:1px
+
+    style output_dir fill:#fafafa,stroke:#bdbdbd,stroke-width:2px
+    style COLS fill:#fafafa,stroke:#bdbdbd,stroke-width:2px
+```
 
 ### Output directory structure
 
@@ -340,6 +408,25 @@ When `stealth=True`, the following defaults are overridden:
 
 ## Scaling Up
 
+```mermaid
+%%{init: {'theme': 'base', 'themeVariables': {'fontSize': '13px'}}}%%
+flowchart TD
+    START(["How many queries?"]):::decision --> SMALL
+
+    SMALL{"1 – 20"}:::decision -->|"Defaults are fine"| CMD1(["financial-scraper\n--queries-file q.txt\n--search-type news"]):::green
+
+    START --> MEDIUM
+    MEDIUM{"20 – 100"}:::decision -->|"Add resume"| CMD2(["+ --resume"]):::orange
+
+    START --> LARGE
+    LARGE{"100 – 300+"}:::decision -->|"Full protection"| CMD3(["+ --stealth\n+ --use-tor\n+ --resume\n+ --exclude-file"]):::red
+
+    classDef decision fill:#e8eaf6,stroke:#3f51b5,color:#1a237e,stroke-width:2px
+    classDef green fill:#c8e6c9,stroke:#388e3c,color:#1b5e20,stroke-width:2px
+    classDef orange fill:#ffe0b2,stroke:#f57c00,color:#e65100,stroke-width:2px
+    classDef red fill:#ffcdd2,stroke:#d32f2f,color:#b71c1c,stroke-width:2px
+```
+
 ### Small runs (1-20 queries)
 
 Default settings work fine:
@@ -398,6 +485,27 @@ If you see `Found 0 results` repeatedly, DuckDuckGo may be rate-limiting you. Wa
 ## Using Tor
 
 Tor routes your requests through the Tor network, providing IP rotation and privacy.
+
+```mermaid
+%%{init: {'theme': 'base', 'themeVariables': {'fontSize': '13px'}}}%%
+flowchart TD
+    START(["Which Tor setup?"]):::decision
+
+    START -->|"Easy, GUI"| BROWSER["🌐 <b>Tor Browser</b>\n1. Download from torproject.org\n2. Launch & connect\n3. Keep running in background"]:::purple
+    START -->|"Headless, server"| DAEMON["⚙️ <b>Tor Daemon</b>\n1. Install via package manager\n2. Run: tor\n3. Runs in background"]:::blue
+
+    BROWSER --> PORT1["Port <b>9150</b>\n<i>default, no flag needed</i>"]:::grey
+    DAEMON --> PORT2["Port <b>9050</b>\n<i>use --tor-socks-port 9050</i>"]:::grey
+
+    PORT1 --> RUN(["▶️ financial-scraper\n--use-tor"]):::green
+    PORT2 --> RUN
+
+    classDef decision fill:#e8eaf6,stroke:#3f51b5,color:#1a237e,stroke-width:2px
+    classDef purple fill:#e1bee7,stroke:#8e24aa,color:#4a148c,stroke-width:2px
+    classDef blue fill:#bbdefb,stroke:#1976d2,color:#0d47a1,stroke-width:2px
+    classDef grey fill:#f5f5f5,stroke:#9e9e9e,stroke-width:2px
+    classDef green fill:#c8e6c9,stroke:#388e3c,color:#1b5e20,stroke-width:2px
+```
 
 ### Setup
 
@@ -538,6 +646,27 @@ if sys.platform.startswith("win"):
 ---
 
 ## Troubleshooting & FAQ
+
+```mermaid
+%%{init: {'theme': 'base', 'themeVariables': {'fontSize': '12px'}}}%%
+flowchart TD
+    PROBLEM(["🔧 What's wrong?"]):::decision
+
+    PROBLEM --> Z["0 results\nfor all queries"]:::red
+    PROBLEM --> F["High fetch\nfailure >60%"]:::orange
+    PROBLEM --> M["ModuleNotFoundError"]:::orange
+    PROBLEM --> E["Empty Parquet\noutput"]:::orange
+
+    Z --> Z_FIX["Wait 5-10 min\nEnable --use-tor\nEnable --stealth"]:::green
+    F --> F_FIX["Use --search-type news\nAdd domains to exclusion list\n30-50% failure is normal"]:::green
+    M --> M_FIX["Activate venv\nRun pip install -e .\nfrom financial_scraper/ dir"]:::green
+    E --> E_FIX["Try --min-words 50\nBroaden date range\nCheck query relevance"]:::green
+
+    classDef decision fill:#e8eaf6,stroke:#3f51b5,color:#1a237e,stroke-width:2px
+    classDef red fill:#ffcdd2,stroke:#d32f2f,color:#b71c1c,stroke-width:2px
+    classDef orange fill:#ffe0b2,stroke:#f57c00,color:#e65100,stroke-width:2px
+    classDef green fill:#c8e6c9,stroke:#388e3c,color:#1b5e20,stroke-width:2px
+```
 
 ### "Found 0 results" for every query
 

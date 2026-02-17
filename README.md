@@ -279,17 +279,28 @@ For detailed troubleshooting, see the [User Guide — Troubleshooting & FAQ](doc
 ## Architecture
 
 ```mermaid
+%%{init: {'theme': 'base', 'themeVariables': {'primaryColor': '#4a90d9', 'lineColor': '#5c6bc0', 'fontSize': '14px'}}}%%
 flowchart LR
-    A["📄 Query File\nOne query per line"] --> B["🔍 DDG Search\ntext / news mode\nretry + cooldown"]
-    B --> C["🌐 Async Fetch\naiohttp + fingerprints\nthrottle + robots.txt\noptional Tor"]
-    C --> D["📝 Extract\ntrafilatura 2-pass\npdfplumber\ncleanup + date filter"]
-    D --> E["💾 Dedup + Store\nURL + SHA256 dedup\nParquet + JSONL\ncheckpoint"]
+    A([" 📄 Query File "]):::blue --> B([" 🔍 DDG Search "]):::orange
+    B --> C([" 🌐 Async Fetch "]):::purple
+    C --> D([" 📝 Extract "]):::green
+    D --> E([" 💾 Store "]):::red
 
-    style A fill:#4a90d9,stroke:#2c5f8a,color:#fff
-    style B fill:#f5a623,stroke:#c47d0e,color:#fff
-    style C fill:#7b68ee,stroke:#5a4bc7,color:#fff
-    style D fill:#50c878,stroke:#3a9a5c,color:#fff
-    style E fill:#e74c3c,stroke:#c0392b,color:#fff
+    B -.-|"text / news\nretry + backoff\nadaptive cooldown"| B
+    C -.-|"aiohttp\nfingerprints\nthrottle\nrobots.txt\nTor"| C
+    D -.-|"trafilatura\npdfplumber\ncleanup\ndate filter"| D
+    E -.-|"URL + SHA256 dedup\nParquet + JSONL\ncheckpoint"| E
+
+    classDef blue fill:#4a90d9,stroke:#2c5f8a,color:#fff,stroke-width:2px
+    classDef orange fill:#f5a623,stroke:#c47d0e,color:#fff,stroke-width:2px
+    classDef purple fill:#7b68ee,stroke:#5a4bc7,color:#fff,stroke-width:2px
+    classDef green fill:#50c878,stroke:#3a9a5c,color:#fff,stroke-width:2px
+    classDef red fill:#e74c3c,stroke:#c0392b,color:#fff,stroke-width:2px
+
+    linkStyle 0 stroke:#5c6bc0,stroke-width:3px
+    linkStyle 1 stroke:#5c6bc0,stroke-width:3px
+    linkStyle 2 stroke:#5c6bc0,stroke-width:3px
+    linkStyle 3 stroke:#5c6bc0,stroke-width:3px
 ```
 
 The pipeline is modular — each stage is an independent module under `src/financial_scraper/`. See [`docs/architecture.md`](docs/architecture.md) for the full module map, data flow types, and design rationale.
