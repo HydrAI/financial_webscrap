@@ -43,9 +43,11 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = ["pytest", "pytest-asyncio", "pytest-cov"]
+mcp = ["mcp>=1.0"]
 
 [project.scripts]
 financial-scraper = "financial_scraper.main:main"
+financial-scraper-mcp = "financial_scraper.mcp:start_server"
 
 [project.urls]
 Homepage = "https://github.com/HydrAI/financial-scraper"

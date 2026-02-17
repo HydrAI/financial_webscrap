@@ -310,6 +310,7 @@ The pipeline is modular, each stage is an independent module under `src/financia
 - **[User Guide](docs/user-guide.md)**, detailed installation, configuration reference, scaling guide, and troubleshooting
 - **[Architecture](docs/architecture.md)**, module map, data flow, and design rationale
 - **[Ethical Scraping](docs/ethical-scraping.md)**, rate limiting strategy, robots.txt, best practices
+- **[MCP Server Setup](docs/mcp-setup.md)**, use financial-scraper as an MCP tool server for LLMs (Claude Desktop, etc.)
 
 ## Contributing
 

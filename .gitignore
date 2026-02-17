@@ -65,6 +65,9 @@ $RECYCLE.BIN/
 .scraper_checkpoint.json
 *.checkpoint.json
 
+# WIP / manual test scripts
+_test_mcp_live.py
+
 # Scraper run outputs (large, generated)
 financial_scraper/runs/
 
