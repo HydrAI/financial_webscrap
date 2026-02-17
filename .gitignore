@@ -11,6 +11,9 @@ CLAUDE.md
 # =============================================================================
 __pycache__/
 *.py[cod]
+.coverage
+.coverage.*
+htmlcov/
 *$py.class
 *.so
 *.egg
