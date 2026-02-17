@@ -19,6 +19,7 @@ from .extract.clean import TextCleaner
 from .extract.date_filter import DateFilter
 from .store.dedup import Deduplicator
 from .store.output import ParquetWriter, JSONLWriter, make_source_file_tag
+from .store.markdown import MarkdownWriter
 from .checkpoint import Checkpoint
 
 logger = logging.getLogger(__name__)
@@ -40,6 +41,9 @@ class ScraperPipeline:
         self._parquet_writer = ParquetWriter(self._config.output_path)
         self._jsonl_writer = (
             JSONLWriter(self._config.jsonl_path) if self._config.jsonl_path else None
+        )
+        self._markdown_writer = (
+            MarkdownWriter(self._config.markdown_path) if self._config.markdown_path else None
         )
         self._exclusions: set[str] = set()
         self._pages_extracted = 0
@@ -208,6 +212,8 @@ class ScraperPipeline:
                 self._parquet_writer.append(records)
                 if self._jsonl_writer:
                     self._jsonl_writer.append(records)
+                if self._markdown_writer:
+                    self._markdown_writer.append(records)
                 total_records += len(records)
 
             avg_words = (

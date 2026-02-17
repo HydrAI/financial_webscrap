@@ -30,7 +30,7 @@ for noisy in [
     logging.getLogger(noisy).setLevel(logging.ERROR)
 
 
-def _resolve_output_paths(args) -> tuple[Path, Path, Path | None]:
+def _resolve_output_paths(args) -> tuple[Path, Path, Path | None, Path | None]:
     """Build datetime-stamped output directory and file paths.
 
     If --output is an explicit .parquet file, use that directly.
@@ -43,7 +43,8 @@ def _resolve_output_paths(args) -> tuple[Path, Path, Path | None]:
         out_dir = out_path.parent
         out_dir.mkdir(parents=True, exist_ok=True)
         jsonl_path = Path(args.jsonl) if args.jsonl else None
-        return out_dir, out_path, jsonl_path
+        markdown_path = None
+        return out_dir, out_path, jsonl_path, markdown_path
 
     # Datetime-stamped folder
     ts = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -53,12 +54,13 @@ def _resolve_output_paths(args) -> tuple[Path, Path, Path | None]:
 
     out_path = out_dir / f"scrape_{ts}.parquet"
     jsonl_path = out_dir / f"scrape_{ts}.jsonl" if args.jsonl else None
-    return out_dir, out_path, jsonl_path
+    markdown_path = out_dir / f"scrape_{ts}.md" if args.markdown else None
+    return out_dir, out_path, jsonl_path, markdown_path
 
 
 def build_config(args) -> ScraperConfig:
     """Build ScraperConfig from CLI args."""
-    out_dir, out_path, jsonl_path = _resolve_output_paths(args)
+    out_dir, out_path, jsonl_path, markdown_path = _resolve_output_paths(args)
 
     return ScraperConfig(
         queries_file=Path(args.queries_file),
@@ -88,6 +90,7 @@ def build_config(args) -> ScraperConfig:
         output_dir=out_dir,
         output_path=out_path,
         jsonl_path=jsonl_path,
+        markdown_path=markdown_path,
         exclude_file=Path(args.exclude_file) if args.exclude_file else None,
         checkpoint_file=Path(args.checkpoint),
         resume=args.resume,
@@ -134,6 +137,7 @@ def main():
 
     # Store
     p.add_argument("--jsonl", action="store_true", help="Also write JSONL output")
+    p.add_argument("--markdown", action="store_true", help="Also write Markdown output")
     p.add_argument("--exclude-file", default=None)
     p.add_argument("--checkpoint", default=".scraper_checkpoint.json")
     p.add_argument("--resume", action="store_true")

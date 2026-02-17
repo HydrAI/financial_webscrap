@@ -50,6 +50,7 @@ class ScraperConfig:
     output_dir: Path = Path(".")  # directory for output files
     output_path: Path = Path("output.parquet")  # resolved parquet file path
     jsonl_path: Path | None = None
+    markdown_path: Path | None = None
     exclude_file: Path | None = None
 
     # Checkpoint

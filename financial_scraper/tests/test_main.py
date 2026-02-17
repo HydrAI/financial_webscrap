@@ -34,6 +34,7 @@ def _make_args(**overrides):
         "date_from": None,
         "date_to": None,
         "jsonl": False,
+        "markdown": False,
         "exclude_file": None,
         "checkpoint": ".scraper_checkpoint.json",
         "resume": False,
@@ -46,7 +47,7 @@ class TestResolveOutputPaths:
     def test_explicit_parquet_path(self, tmp_path):
         out_file = str(tmp_path / "my_output.parquet")
         args = _make_args(output=out_file, jsonl=False)
-        out_dir, out_path, jsonl_path = _resolve_output_paths(args)
+        out_dir, out_path, jsonl_path, _ = _resolve_output_paths(args)
         assert out_path == Path(out_file)
         assert out_dir == Path(out_file).parent
         assert jsonl_path is None
@@ -55,25 +56,25 @@ class TestResolveOutputPaths:
         out_file = str(tmp_path / "out.parquet")
         jsonl_file = str(tmp_path / "out.jsonl")
         args = _make_args(output=out_file, jsonl=jsonl_file)
-        _, _, jsonl_path = _resolve_output_paths(args)
+        _, _, jsonl_path, _ = _resolve_output_paths(args)
         assert jsonl_path == Path(jsonl_file)
 
     def test_timestamped_folder(self, tmp_path):
         args = _make_args(output_dir=str(tmp_path))
-        out_dir, out_path, jsonl_path = _resolve_output_paths(args)
+        out_dir, out_path, jsonl_path, _ = _resolve_output_paths(args)
         assert out_dir.parent == tmp_path
         assert out_path.suffix == ".parquet"
         assert "scrape_" in out_path.name
 
     def test_timestamped_folder_with_jsonl(self, tmp_path):
         args = _make_args(output_dir=str(tmp_path), jsonl=True)
-        _, _, jsonl_path = _resolve_output_paths(args)
+        _, _, jsonl_path, _ = _resolve_output_paths(args)
         assert jsonl_path is not None
         assert jsonl_path.suffix == ".jsonl"
 
     def test_default_cwd_when_no_output_args(self, tmp_path):
         args = _make_args()
-        out_dir, out_path, jsonl_path = _resolve_output_paths(args)
+        out_dir, out_path, jsonl_path, _ = _resolve_output_paths(args)
         assert out_path.suffix == ".parquet"
 
 

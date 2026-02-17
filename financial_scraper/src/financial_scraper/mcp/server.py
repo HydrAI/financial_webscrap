@@ -22,6 +22,7 @@ from ..fetch.robots import RobotChecker
 from ..fetch.throttle import DomainThrottler
 from ..search.duckduckgo import DDGSearcher
 from ..store.dedup import Deduplicator
+from ..store.markdown import format_records_md
 
 logger = logging.getLogger(__name__)
 
@@ -30,6 +31,7 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 _config = ScraperConfig()
 _fetch_cache: OrderedDict[str, FetchResult] = OrderedDict()
+_extract_cache: OrderedDict[str, dict] = OrderedDict()
 _dedup = Deduplicator()
 
 _CACHE_MAX = 500
@@ -56,6 +58,14 @@ def _cache_put(url: str, result: FetchResult) -> None:
     _fetch_cache.move_to_end(url)
     while len(_fetch_cache) > _CACHE_MAX:
         _fetch_cache.popitem(last=False)
+
+
+def _extract_cache_put(url: str, record: dict) -> None:
+    """LRU-evicting cache for bridging extract → export_markdown."""
+    _extract_cache[url] = record
+    _extract_cache.move_to_end(url)
+    while len(_extract_cache) > _CACHE_MAX:
+        _extract_cache.popitem(last=False)
 
 
 # ---------------------------------------------------------------------------
@@ -177,7 +187,7 @@ async def extract(
                 continue
 
             _dedup.mark_seen(url, ex.text)
-            results.append({
+            result_dict = {
                 "url": url,
                 "title": ex.title,
                 "author": ex.author,
@@ -186,7 +196,10 @@ async def extract(
                 "word_count": ex.word_count,
                 "extraction_method": ex.extraction_method,
                 "error": None,
-            })
+            }
+            results.append(result_dict)
+            # Cache for export_markdown
+            _extract_cache_put(url, result_dict)
         except Exception as exc:
             results.append({"url": url, "error": str(exc)})
 
@@ -238,7 +251,7 @@ async def scrape(
     for ex in extractions:
         if ex.get("error"):
             continue
-        articles.append({
+        article = {
             "url": ex["url"],
             "title": ex.get("title"),
             "author": ex.get("author"),
@@ -246,6 +259,15 @@ async def scrape(
             "word_count": ex.get("word_count"),
             "snippet": snippets.get(ex["url"], ""),
             "full_text": ex.get("text", ""),
+        }
+        articles.append(article)
+        # Update extract cache with query context for export_markdown
+        _extract_cache_put(ex["url"], {
+            **ex,
+            "company": query,
+            "full_text": ex.get("text", ""),
+            "link": ex["url"],
+            "source": ex["url"],
         })
 
     return {
@@ -257,7 +279,46 @@ async def scrape(
 
 
 # ---------------------------------------------------------------------------
-# Tool 5: read_output
+# Tool 5: export_markdown
+# ---------------------------------------------------------------------------
+@mcp.tool()
+async def export_markdown(
+    urls: list[str] | None = None,
+) -> dict:
+    """Format previously extracted articles as markdown.
+
+    If urls is provided, format only those articles.
+    If urls is omitted, format all articles extracted in this session.
+    """
+    if urls is not None:
+        missing = [u for u in urls if u not in _extract_cache]
+        if missing:
+            return {"error": f"URLs not in extract cache: {missing}"}
+        records = [_extract_cache[u] for u in urls]
+    else:
+        records = list(_extract_cache.values())
+
+    if not records:
+        return {"markdown": "", "article_count": 0}
+
+    # Normalise records for format_records_md (expects company, title, link, full_text, etc.)
+    normalised = []
+    for r in records:
+        normalised.append({
+            "company": r.get("company", ""),
+            "title": r.get("title", ""),
+            "link": r.get("link", r.get("url", "")),
+            "date": r.get("date", ""),
+            "source": r.get("source", ""),
+            "full_text": r.get("full_text", r.get("text", "")),
+        })
+
+    md = format_records_md(normalised)
+    return {"markdown": md, "article_count": len(normalised)}
+
+
+# ---------------------------------------------------------------------------
+# Tool 6: read_output
 # ---------------------------------------------------------------------------
 @mcp.tool()
 async def read_output(

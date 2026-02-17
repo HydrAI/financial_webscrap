@@ -19,6 +19,7 @@ from financial_scraper.mcp import server as mcp_server
 def _reset_server_state():
     """Reset module-level state between tests."""
     mcp_server._fetch_cache.clear()
+    mcp_server._extract_cache.clear()
     mcp_server._dedup = mcp_server.Deduplicator()
     mcp_server._config = ScraperConfig()
     yield
@@ -337,6 +338,67 @@ class TestScrapeTool:
 
         assert result["results_found"] == 0
         assert result["articles"] == []
+
+
+# ---------------------------------------------------------------------------
+# Tool: export_markdown
+# ---------------------------------------------------------------------------
+
+class TestExportMarkdownTool:
+    @pytest.mark.asyncio
+    async def test_export_from_extract_cache(self):
+        mcp_server._extract_cache_put("https://example.com/1", {
+            "url": "https://example.com/1",
+            "title": "Oil Article",
+            "company": "oil futures",
+            "link": "https://example.com/1",
+            "date": "2025-06-15",
+            "source": "example.com",
+            "full_text": "Full article content about oil.",
+        })
+
+        result = await mcp_server.export_markdown()
+
+        assert result["article_count"] == 1
+        assert "Oil Article" in result["markdown"]
+        assert "oil futures" in result["markdown"]
+
+    @pytest.mark.asyncio
+    async def test_export_specific_urls(self):
+        mcp_server._extract_cache_put("https://a.com", {
+            "url": "https://a.com",
+            "title": "Article A",
+            "company": "query a",
+            "link": "https://a.com",
+            "date": "",
+            "source": "a.com",
+            "full_text": "Content A",
+        })
+        mcp_server._extract_cache_put("https://b.com", {
+            "url": "https://b.com",
+            "title": "Article B",
+            "company": "query b",
+            "link": "https://b.com",
+            "date": "",
+            "source": "b.com",
+            "full_text": "Content B",
+        })
+
+        result = await mcp_server.export_markdown(urls=["https://a.com"])
+        assert result["article_count"] == 1
+        assert "Article A" in result["markdown"]
+        assert "Article B" not in result["markdown"]
+
+    @pytest.mark.asyncio
+    async def test_export_unknown_url_returns_error(self):
+        result = await mcp_server.export_markdown(urls=["https://unknown.com"])
+        assert "error" in result
+
+    @pytest.mark.asyncio
+    async def test_export_empty_cache(self):
+        result = await mcp_server.export_markdown()
+        assert result["article_count"] == 0
+        assert result["markdown"] == ""
 
 
 # ---------------------------------------------------------------------------
