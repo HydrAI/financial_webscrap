@@ -687,22 +687,17 @@ Organized the root `wscrap/` directory:
 - Wrote `_archive/ARCHIVE_INDEX.md` describing each subfolder
 - Cleaned test parquet outputs and `__pycache__` from the package
 
-**Final root structure** (active files only):
+**Repository structure** (committed files):
 ```
-C:/_T/code/wscrap/
-├── financial_scraper/           # Active package (22 modules)
+financial_webscrap/
+├── README.md                    # Repo-level documentation
+├── financial_scraper/           # Active package
 │   ├── DOCUMENTATION.md         # This file
+│   ├── README.md                # Package-level documentation
 │   ├── pyproject.toml
+│   ├── _run_50.py               # Standalone runner script
 │   ├── config/                  # Query files + exclusion list
-│   ├── src/financial_scraper/   # Source code
-│   ├── runs/                    # Output from scrape runs
-│   └── tests/                   # (placeholder)
-├── compliant_scraper_v18.py     # Monolithic predecessor (reference)
-├── 20250930_scrapping_theme_names.py  # Active theme name script
-├── SCRAPER_PROJECT_PROMPT_v2.md # Original project brief
-├── KPI_PROMPT.txt               # NLP prompt (for future step)
-├── webscrap_guidelines.txt      # Notes
-└── _archive/                    # All obsolete/historical files
+│   └── src/financial_scraper/   # Source code (17 modules)
 ```
 
 ### Phase 6: `__main__.py` + 300-Query File
