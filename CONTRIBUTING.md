@@ -23,7 +23,7 @@ All tests must pass before submitting a PR. Current coverage target: **85%+**.
 
 - Follow existing patterns in the codebase
 - Use type hints for function signatures
-- Keep modules focused — one responsibility per file
+- Keep modules focused, one responsibility per file
 - Async functions should use `aiohttp`, not `requests`
 - All network-facing code must respect `robots.txt` by default
 

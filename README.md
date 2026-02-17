@@ -11,17 +11,17 @@ Ethical, async web scraper for financial research. Searches DuckDuckGo, fetches 
 
 ## Features
 
-- **Ethical by default** — robots.txt compliance, adaptive per-domain rate limiting
-- **DuckDuckGo search** — text and news modes, no API keys required
-- **Async HTTP** — aiohttp with configurable concurrency and per-domain throttling
-- **HTML + PDF extraction** — trafilatura 2-pass for HTML, pdfplumber for PDFs
-- **Content deduplication** — URL normalization + SHA256 content hashing
-- **Checkpoint/resume** — atomic saves after each query, crash recovery
-- **Fingerprint rotation** — 5 browser profiles to reduce bot detection
-- **Parquet + JSONL output** — columnar storage with snappy compression
-- **Date filtering** — keep only pages within a date range
-- **Tor support** — SOCKS5 proxy with automatic circuit renewal
-- **Stealth mode** — reduced concurrency + longer delays preset
+- **Ethical by default**, robots.txt compliance, adaptive per-domain rate limiting
+- **DuckDuckGo search**, text and news modes, no API keys required
+- **Async HTTP**, aiohttp with configurable concurrency and per-domain throttling
+- **HTML + PDF extraction**, trafilatura 2-pass for HTML, pdfplumber for PDFs
+- **Content deduplication**, URL normalization + SHA256 content hashing
+- **Checkpoint/resume**, atomic saves after each query, crash recovery
+- **Fingerprint rotation**, 5 browser profiles to reduce bot detection
+- **Parquet + JSONL output**, columnar storage with snappy compression
+- **Date filtering**, keep only pages within a date range
+- **Tor support**, SOCKS5 proxy with automatic circuit renewal
+- **Stealth mode**, reduced concurrency + longer delays preset
 
 ---
 
@@ -213,7 +213,7 @@ pipeline = ScraperPipeline(config)
 asyncio.run(pipeline.run())
 ```
 
-`ScraperConfig` is a frozen dataclass with 30+ fields covering search, fetch, extraction, Tor, and output settings. See the [User Guide — Configuration Reference](docs/user-guide.md#configuration-reference) for the full field table with types and defaults.
+`ScraperConfig` is a frozen dataclass with 30+ fields covering search, fetch, extraction, Tor, and output settings. See the [User Guide, Configuration Reference](docs/user-guide.md#configuration-reference) for the full field table with types and defaults.
 
 See [`docs/examples/`](docs/examples/) for more Python examples.
 
@@ -224,19 +224,19 @@ See [`docs/examples/`](docs/examples/) for more Python examples.
 | Flag | Default | Description |
 |------|---------|-------------|
 | `--queries-file FILE` | *required* | Text file with one query per line |
-| `--output FILE` | — | Explicit `.parquet` output path |
+| `--output FILE` | - | Explicit `.parquet` output path |
 | `--output-dir DIR` | `.` | Base directory for timestamped output folders |
 | `--jsonl` | off | Also write JSONL alongside Parquet |
 | `--search-type {text,news}` | `text` | DuckDuckGo search mode |
 | `--max-results N` | `20` | Results per query |
-| `--timelimit {d,w,m,y}` | — | DDG time filter |
+| `--timelimit {d,w,m,y}` | - | DDG time filter |
 | `--region CODE` | `wt-wt` | DDG region code |
 | `--backend {auto,api,html,lite}` | `auto` | DDG backend |
-| `--proxy URL` | — | HTTP/SOCKS5 proxy for searches |
+| `--proxy URL` | - | HTTP/SOCKS5 proxy for searches |
 | `--use-tor` | off | Route fetches through Tor |
 | `--tor-socks-port PORT` | `9150` | Tor SOCKS5 port |
 | `--tor-control-port PORT` | `9051` | Tor control port |
-| `--tor-password PASS` | — | Tor control password |
+| `--tor-password PASS` | - | Tor control password |
 | `--tor-renew-every N` | `20` | Renew Tor circuit every N queries |
 | `--concurrent N` | `10` | Max parallel fetches |
 | `--per-domain N` | `3` | Max concurrent fetches per domain |
@@ -244,22 +244,22 @@ See [`docs/examples/`](docs/examples/) for more Python examples.
 | `--stealth` | off | Low-profile mode (concurrency 4, delays 5-8s) |
 | `--no-robots` | off | Skip robots.txt checking |
 | `--min-words N` | `100` | Minimum word count to keep |
-| `--target-language LANG` | — | ISO language filter (e.g. `en`) |
+| `--target-language LANG` | - | ISO language filter (e.g. `en`) |
 | `--no-favor-precision` | off | Disable trafilatura precision mode |
-| `--date-from YYYY-MM-DD` | — | Keep pages after this date |
-| `--date-to YYYY-MM-DD` | — | Keep pages before this date |
+| `--date-from YYYY-MM-DD` | - | Keep pages after this date |
+| `--date-to YYYY-MM-DD` | - | Keep pages before this date |
 | `--resume` | off | Resume from last checkpoint |
 | `--checkpoint FILE` | `.scraper_checkpoint.json` | Checkpoint file path |
-| `--exclude-file FILE` | — | Domain exclusion list |
+| `--exclude-file FILE` | - | Domain exclusion list |
 
 ---
 
 ## Tips
 
-- **Use `--search-type news`** for financial content — less rate-limited and more relevant than text search
-- **Expect 30-50% fetch failures** — many financial sites block automated access (Cloudflare, paywalls). This is normal; the pipeline logs and continues
+- **Use `--search-type news`** for financial content, less rate-limited and more relevant than text search
+- **Expect 30-50% fetch failures**, many financial sites block automated access (Cloudflare, paywalls). This is normal; the pipeline logs and continues
 - **Niche queries returning 0 results?** Simplify your phrasing (e.g., `grain market` instead of `oats commodity analysis`)
-- **Start small** — test with 5-10 queries before scaling to hundreds
+- **Start small**, test with 5-10 queries before scaling to hundreds
 - **Windows users:** If `financial-scraper` gives "Access is denied", use `python -m financial_scraper` instead
 - **Tor users:** Start Tor Browser (port 9150) or the Tor daemon (port 9050) *before* running with `--use-tor`
 
@@ -272,7 +272,7 @@ See [`docs/examples/`](docs/examples/) for more Python examples.
 | High fetch failure (>60%) | Sites blocking scrapers | Use `--search-type news`, add domains to exclusion list |
 | Empty Parquet output | Word count filter or date filter too strict | Try `--min-words 50`, broaden date range |
 
-For detailed troubleshooting, see the [User Guide — Troubleshooting & FAQ](docs/user-guide.md#troubleshooting--faq).
+For detailed troubleshooting, see the [User Guide, Troubleshooting & FAQ](docs/user-guide.md#troubleshooting--faq).
 
 ---
 
@@ -301,15 +301,15 @@ flowchart LR
     linkStyle 3 stroke:#5c6bc0,stroke-width:3px
 ```
 
-The pipeline is modular — each stage is an independent module under `src/financial_scraper/`. See [`docs/architecture.md`](docs/architecture.md) for the full module map, data flow types, and design rationale.
+The pipeline is modular, each stage is an independent module under `src/financial_scraper/`. See [`docs/architecture.md`](docs/architecture.md) for the full module map, data flow types, and design rationale.
 
 ---
 
 ## Documentation
 
-- **[User Guide](docs/user-guide.md)** — Detailed installation, configuration reference, scaling guide, and troubleshooting
-- **[Architecture](docs/architecture.md)** — Module map, data flow, and design rationale
-- **[Ethical Scraping](docs/ethical-scraping.md)** — Rate limiting strategy, robots.txt, best practices
+- **[User Guide](docs/user-guide.md)**, detailed installation, configuration reference, scaling guide, and troubleshooting
+- **[Architecture](docs/architecture.md)**, module map, data flow, and design rationale
+- **[Ethical Scraping](docs/ethical-scraping.md)**, rate limiting strategy, robots.txt, best practices
 
 ## Contributing
 

@@ -250,14 +250,14 @@ flowchart TD
 
 ## Design Rationale
 
-**DuckDuckGo only** — No API keys, no billing, works through Tor. News mode produces strong results for financial content without rate-limit pressure.
+**DuckDuckGo only**,No API keys, no billing, works through Tor. News mode produces strong results for financial content without rate-limit pressure.
 
-**trafilatura over BeautifulSoup** — Purpose-built for main content extraction with metadata (title, date, author). The 2-pass strategy (precision mode first, then relaxed fallback) maximizes recall without sacrificing quality.
+**trafilatura over BeautifulSoup**,Purpose-built for main content extraction with metadata (title, date, author). The 2-pass strategy (precision mode first, then relaxed fallback) maximizes recall without sacrificing quality.
 
-**Adaptive per-domain throttling** — Each domain gets its own delay that adjusts dynamically: successful fetches halve the delay (floor 0.5s), 429/503 responses double it (ceiling 60s). This converges to the optimal rate per site without a single slow domain blocking the whole pipeline.
+**Adaptive per-domain throttling**,Each domain gets its own delay that adjusts dynamically: successful fetches halve the delay (floor 0.5s), 429/503 responses double it (ceiling 60s). This converges to the optimal rate per site without a single slow domain blocking the whole pipeline.
 
-**Frozen dataclass config** — `ScraperConfig` is immutable after creation. Stealth mode creates a new instance with overrides rather than mutating state during async execution.
+**Frozen dataclass config**,`ScraperConfig` is immutable after creation. Stealth mode creates a new instance with overrides rather than mutating state during async execution.
 
-**Checkpoint per query** — Queries are the natural unit of work (5-20 pages each). Atomic JSON writes (write to temp file, then rename) prevent corruption on crash.
+**Checkpoint per query**,Queries are the natural unit of work (5-20 pages each). Atomic JSON writes (write to temp file, then rename) prevent corruption on crash.
 
-**Parquet output** — Columnar format with snappy compression. Schema matches the downstream `merged_by_year` pipeline for compatibility. Append mode allows incremental writes.
+**Parquet output**,Columnar format with snappy compression. Schema matches the downstream `merged_by_year` pipeline for compatibility. Append mode allows incremental writes.

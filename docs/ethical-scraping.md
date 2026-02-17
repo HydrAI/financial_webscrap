@@ -87,7 +87,7 @@ flowchart LR
     classDef p5 fill:#ede7f6,stroke:#6a1b9a,stroke-width:2px
 ```
 
-This is not for evasion — it reduces the chance of a single fingerprint being flagged as automated, which would result in blocks that waste bandwidth for both the scraper and the server.
+This is not for evasion,it reduces the chance of a single fingerprint being flagged as automated, which would result in blocks that waste bandwidth for both the scraper and the server.
 
 ## Tor Usage
 
@@ -122,7 +122,7 @@ flowchart TD
 - Circuits renew every N queries (default 20) to distribute load
 - Automatic renewal on rate-limit responses
 
-**Guidance:** Use Tor for legitimate privacy needs (e.g., competitive research where your IP should not be associated with queries). Do not use Tor to circumvent rate limits or access restrictions — the adaptive throttling handles rate limits properly.
+**Guidance:** Use Tor for legitimate privacy needs (e.g., competitive research where your IP should not be associated with queries). Do not use Tor to circumvent rate limits or access restrictions,the adaptive throttling handles rate limits properly.
 
 ## Concurrency Limits
 
@@ -174,10 +174,10 @@ Stealth mode reduces pressure across the board for large-scale runs.
 
 ## Best Practices
 
-- **Use `--search-type news`** for financial content — it returns more relevant results and faces fewer rate limits
+- **Use `--search-type news`** for financial content,it returns more relevant results and faces fewer rate limits
 - **Start with small query files** (10-20 queries) to test before scaling up
 - **Use `--stealth` for 100+ queries** to reduce server impact
 - **Enable `--resume`** so interrupted runs don't re-fetch already-processed queries
-- **Respect domain exclusions** — the default `exclude_domains.txt` blocks sites known to aggressively block scrapers
-- **Check output quality** before scaling — if a domain consistently returns empty extractions, add it to the exclusion list rather than hammering it
+- **Respect domain exclusions**,the default `exclude_domains.txt` blocks sites known to aggressively block scrapers
+- **Check output quality** before scaling,if a domain consistently returns empty extractions, add it to the exclusion list rather than hammering it
 - **Run during off-peak hours** when scraping large volumes

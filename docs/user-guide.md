@@ -1,6 +1,6 @@
 # User Guide
 
-A step-by-step guide to installing, configuring, and running financial-scraper — from your first query to large-scale production runs.
+A step-by-step guide to installing, configuring, and running financial-scraper,from your first query to large-scale production runs.
 
 ---
 
@@ -31,8 +31,8 @@ Before installing financial-scraper, make sure you have:
 | git | any | latest | `git --version` |
 
 **Optional:**
-- **Tor Browser** or **Tor daemon** — only if you plan to use `--use-tor` for IP rotation
-- **pandas** — already included as a dependency, but good to be aware of for analyzing output
+- **Tor Browser** or **Tor daemon**,only if you plan to use `--use-tor` for IP rotation
+- **pandas**,already included as a dependency, but good to be aware of for analyzing output
 
 ### Platform support
 
@@ -95,7 +95,7 @@ cd financial_scraper
 pip install -e .
 ```
 
-This installs all dependencies and registers the `financial-scraper` CLI command. The `-e` flag means "editable" — changes to the source code take effect immediately without reinstalling.
+This installs all dependencies and registers the `financial-scraper` CLI command. The `-e` flag means "editable",changes to the source code take effect immediately without reinstalling.
 
 ### Step 4: Verify the installation
 
@@ -175,7 +175,7 @@ A typical run with 3 queries takes 2-5 minutes. You'll see log output like:
 14:30:15 | INFO     | store.output            | Saved 11 rows to runs/20260215_143000/scrape_20260215_143000.parquet
 ```
 
-**30-50% of fetches will fail.** This is normal. Many financial sites use Cloudflare, bot detection, or paywalls. The scraper logs and skips these gracefully — it does not retry blocked sites.
+**30-50% of fetches will fail.** This is normal. Many financial sites use Cloudflare, bot detection, or paywalls. The scraper logs and skips these gracefully,it does not retry blocked sites.
 
 ### Step 4: Read the output
 
@@ -312,7 +312,7 @@ financial-scraper \
   --date-to 2025-06-30
 ```
 
-Note: This filters *after* extraction based on the date trafilatura detects in the HTML. Not all pages have detectable dates — those without dates are kept by default.
+Note: This filters *after* extraction based on the date trafilatura detects in the HTML. Not all pages have detectable dates,those without dates are kept by default.
 
 ### Domain exclusions
 
@@ -342,8 +342,8 @@ The `ScraperConfig` frozen dataclass holds all settings. Every CLI flag maps to 
 |-------|------|---------|----------|-------------|
 | `queries_file` | `Path` | `queries.txt` | `--queries-file` | Path to query file |
 | `max_results_per_query` | `int` | `20` | `--max-results` | Max search results per query |
-| `search_delay_min` | `float` | `3.0` | — | Min seconds between search requests |
-| `search_delay_max` | `float` | `6.0` | — | Max seconds between search requests |
+| `search_delay_min` | `float` | `3.0` | - | Min seconds between search requests |
+| `search_delay_max` | `float` | `6.0` | - | Max seconds between search requests |
 | `ddg_region` | `str` | `wt-wt` | `--region` | DuckDuckGo region (wt-wt = worldwide) |
 | `ddg_timelimit` | `str\|None` | `None` | `--timelimit` | Time filter: d, w, m, y |
 | `ddg_backend` | `str` | `auto` | `--backend` | DDG backend: auto, api, html, lite |
@@ -359,7 +359,7 @@ The `ScraperConfig` frozen dataclass holds all settings. Every CLI flag maps to 
 | `tor_control_port` | `int` | `9051` | `--tor-control-port` | Control port for circuit renewal |
 | `tor_password` | `str` | `""` | `--tor-password` | Control port auth password |
 | `tor_renew_every` | `int` | `20` | `--tor-renew-every` | Renew circuit every N queries |
-| `tor_renew_on_ratelimit` | `bool` | `True` | — | Auto-renew on 429 responses |
+| `tor_renew_on_ratelimit` | `bool` | `True` | - | Auto-renew on 429 responses |
 
 #### Fetch settings
 
@@ -377,7 +377,7 @@ The `ScraperConfig` frozen dataclass holds all settings. Every CLI flag maps to 
 |-------|------|---------|----------|-------------|
 | `min_word_count` | `int` | `100` | `--min-words` | Minimum words to keep a page |
 | `target_language` | `str\|None` | `None` | `--target-language` | ISO language filter (e.g. `en`) |
-| `include_tables` | `bool` | `True` | — | Include table text in extraction |
+| `include_tables` | `bool` | `True` | - | Include table text in extraction |
 | `favor_precision` | `bool` | `True` | `--no-favor-precision` | Use trafilatura precision mode first |
 | `date_from` | `str\|None` | `None` | `--date-from` | Keep pages after YYYY-MM-DD |
 | `date_to` | `str\|None` | `None` | `--date-to` | Keep pages before YYYY-MM-DD |
@@ -473,10 +473,10 @@ financial-scraper \
 
 The scraper logs each query as it processes. Watch for:
 
-- `Found N results` — how many URLs DuckDuckGo returned
-- `Fetched X/Y (Z failed)` — fetch success rate
-- `Extracted N documents` — how many passed word count filter
-- `Saved N rows` — final rows written to Parquet
+- `Found N results`,how many URLs DuckDuckGo returned
+- `Fetched X/Y (Z failed)`,fetch success rate
+- `Extracted N documents`,how many passed word count filter
+- `Saved N rows`,final rows written to Parquet
 
 If you see `Found 0 results` repeatedly, DuckDuckGo may be rate-limiting you. Wait 5-10 minutes or enable Tor.
 
@@ -513,7 +513,7 @@ flowchart TD
 
 1. Download and install [Tor Browser](https://www.torproject.org/download/)
 2. Launch Tor Browser and let it connect
-3. Keep it running in the background — it listens on SOCKS5 port `9150`
+3. Keep it running in the background,it listens on SOCKS5 port `9150`
 
 **Option B: Tor daemon (headless)**
 
@@ -708,9 +708,9 @@ python -m financial_scraper --queries-file queries.txt --search-type news
 ### Scraper hangs / no output
 
 **Possible causes:**
-- Tor not running (if `--use-tor` is set) — start Tor Browser or daemon first
-- All domains are blocked or rate-limited — wait and retry, or use different queries
-- Network connectivity issue — check `ping duckduckgo.com`
+- Tor not running (if `--use-tor` is set),start Tor Browser or daemon first
+- All domains are blocked or rate-limited,wait and retry, or use different queries
+- Network connectivity issue,check `ping duckduckgo.com`
 
 ### How do I resume a failed run?
 
@@ -747,9 +747,9 @@ This tells trafilatura to prefer content in that language. Note: DuckDuckGo resu
 ### Output Parquet file is empty
 
 **Possible causes:**
-- All extracted texts were below `--min-words` (default: 100) — try `--min-words 50`
+- All extracted texts were below `--min-words` (default: 100),try `--min-words 50`
 - All results were duplicates of previously seen content
-- Date filter (`--date-from`/`--date-to`) excluded everything — broaden the range or remove the filter
+- Date filter (`--date-from`/`--date-to`) excluded everything,broaden the range or remove the filter
 
 ---
 

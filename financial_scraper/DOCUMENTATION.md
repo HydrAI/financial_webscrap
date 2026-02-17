@@ -500,7 +500,7 @@ Each profile includes: User-Agent, Accept, Accept-Language, Accept-Encoding, Sec
 
 **Purpose**: Enable `python -m financial_scraper` invocation.
 
-Delegates to `main.main()`. Required because the package uses a `src/` layout — without this file, `python -m` fails with "No module named financial_scraper.__main__".
+Delegates to `main.main()`. Required because the package uses a `src/` layout,without this file, `python -m` fails with "No module named financial_scraper.__main__".
 
 ### 6.17 `main.py` - CLI Entry Point
 
@@ -662,12 +662,12 @@ Built all 17 modules following the project brief. Key adaptations:
 
 **Test 3** (news mode) produced 13 rows with 14,760 total words across 11 unique domains including nasdaq.com, morningstar.com, marketwatch.com, fxempire.com.
 
-**Test 4** (50-query large-scale run on 2026-02-15) — full commodity coverage:
+**Test 4** (50-query large-scale run on 2026-02-15),full commodity coverage:
 - **50 queries** across energy, precious metals, base metals, grains, softs, livestock, exotic/niche, agricultural specialty
 - **120 pages extracted**, 83,895 total words, 699 avg words/page
-- **41 unique domains** — top sources: nasdaq.com (27), theglobeandmail.com (11), marketwatch.com (8), news.metal.com (8), oilprice.com (7), reuters.com (7), fxempire.com (5), mining.com (4), cnbc.com (3)
+- **41 unique domains**,top sources: nasdaq.com (27), theglobeandmail.com (11), marketwatch.com (8), news.metal.com (8), oilprice.com (7), reuters.com (7), fxempire.com (5), mining.com (4), cnbc.com (3)
 - **38/50 queries** produced results (76%). The 12 that returned 0 were niche commodities with sparse DDG news coverage (feeder cattle, lead, lumber, manganese, oats, palladium, platinum, rice, rubber, soybean oil, wheat specific phrasing, wool)
-- **Rate limiting**: Adaptive cooldown triggered a few times but recovered — pipeline completed all 50 queries without manual intervention
+- **Rate limiting**: Adaptive cooldown triggered a few times but recovered,pipeline completed all 50 queries without manual intervention
 - **Config used**: `max_results=10`, `search_delay=4-7s`, `concurrent=8`, `per_domain=2`, `min_words=80`
 - **Output**: `runs/20260215_235519/commodities_50_20260215_235519.parquet` + `.jsonl`
 
