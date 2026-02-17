@@ -4,6 +4,24 @@ Use financial-scraper as a tool server for LLMs via the [Model Context Protocol 
 
 ---
 
+## Why use this instead of built-in web search?
+
+LLM providers (Anthropic, OpenAI, etc.) offer built-in web search tools, but every call costs money: the provider pays a search API (Bing, Google), and the full search results are injected into your context window as input tokens you're billed for. For a research-heavy session that's a growing bill you don't control.
+
+This MCP server runs **entirely on your machine at zero marginal cost**:
+
+| | Built-in web search | This MCP server |
+|---|---|---|
+| Search cost | Provider pays Bing/Google, bills you via tokens or tool surcharges | DuckDuckGo, free, no API key |
+| Fetch cost | Provider fetches pages, billed as input tokens | Your machine, your bandwidth, $0 |
+| Extraction cost | Provider returns full markdown in context (thousands of tokens) | Trafilatura runs locally, you control what goes back to the LLM |
+| Per-session scaling | 10 queries x 50 articles = significant token bill | Same workload, $0 for search/fetch/extract |
+| Response size control | Provider decides what to inject | You return compact structured JSON, minimizing token usage |
+
+The tradeoff is search quality: DDG's index is smaller than Google/Bing, and it rate-limits aggressively under heavy use. For occasional lookups, built-in search is more convenient. For **research workflows** — multiple queries, dozens of articles, iterative exploration — the cost savings add up fast, and you get capabilities built-in search lacks: PDF extraction, content deduplication, batch fetching with per-domain throttling, and direct access to your previous CLI scrape runs.
+
+---
+
 ## Installation
 
 ```bash
