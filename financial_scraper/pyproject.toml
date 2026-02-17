@@ -5,8 +5,26 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "financial-scraper"
 version = "0.1.0"
-description = "Modular financial web scraper using DuckDuckGo search"
-requires-python = ">=3.11"
+description = "Ethical, async web scraper for financial research — DuckDuckGo search, trafilatura extraction, Parquet output"
+requires-python = ">=3.10"
+license = {text = "MIT"}
+authors = [
+    {name = "HydrAI"},
+]
+keywords = ["scraper", "financial", "ethical", "web-scraping", "trafilatura"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Internet :: WWW/HTTP :: Indexing/Search",
+    "Topic :: Office/Business :: Financial",
+    "Topic :: Text Processing :: General",
+    "Intended Audience :: Science/Research",
+    "Intended Audience :: Financial and Insurance Industry",
+]
 dependencies = [
     "duckduckgo-search>=8.0",
     "aiohttp>=3.9",
@@ -28,6 +46,12 @@ dev = ["pytest", "pytest-asyncio", "pytest-cov"]
 
 [project.scripts]
 financial-scraper = "financial_scraper.main:main"
+
+[project.urls]
+Homepage = "https://github.com/HydrAI/financial-scraper"
+Repository = "https://github.com/HydrAI/financial-scraper"
+Issues = "https://github.com/HydrAI/financial-scraper/issues"
+Documentation = "https://github.com/HydrAI/financial-scraper#readme"
 
 [tool.setuptools.packages.find]
 where = ["src"]

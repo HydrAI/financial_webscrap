@@ -1,0 +1,34 @@
+# Financial Research Queries
+# One query per line, # for comments
+
+# Earnings & Reporting
+Apple quarterly earnings results
+Microsoft annual revenue growth
+Tesla delivery numbers quarterly
+Amazon AWS revenue breakdown
+NVIDIA earnings guidance AI demand
+
+# SEC Filings
+SEC 10-K filing analysis methodology
+proxy statement executive compensation trends
+annual report risk factors disclosure
+insider trading SEC Form 4 filings
+
+# Analyst Research
+Wall Street analyst consensus estimates
+earnings surprise stock price impact
+buy sell rating distribution S&P 500
+analyst price target accuracy study
+
+# Macro & Markets
+Federal Reserve interest rate decision impact
+treasury yield curve inversion recession signal
+inflation expectations breakeven rates
+US dollar index DXY forecast
+crude oil futures market outlook
+
+# Commodities
+gold futures price prediction
+copper demand supply China
+natural gas winter storage forecast
+agricultural commodities wheat corn outlook

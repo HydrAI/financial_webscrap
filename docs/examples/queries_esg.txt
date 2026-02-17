@@ -1,0 +1,23 @@
+# ESG & Sustainability Queries
+# One query per line, # for comments
+
+# Environmental
+corporate carbon emissions reduction targets
+renewable energy investment portfolio allocation
+climate risk disclosure TCFD framework
+Scope 3 emissions supply chain reporting
+water scarcity risk corporate disclosure
+
+# Social
+DEI diversity equity inclusion corporate reporting
+employee satisfaction workplace safety metrics
+supply chain labor standards audit
+community impact corporate social responsibility
+data privacy consumer protection regulation
+
+# Governance
+board diversity gender representation
+executive compensation shareholder advisory vote
+ESG rating methodology comparison
+anti-corruption compliance FCPA enforcement
+shareholder activism proxy fight outcomes

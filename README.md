@@ -1,88 +1,308 @@
-# financial_webscrap
+# financial-scraper
 
-Helps researchers and analysts gather large-scale text datasets from financial news and web sources for NLP, sentiment analysis, and market research projects. Searches DuckDuckGo, fetches pages async with fingerprint rotation, extracts clean text via trafilatura/pdfplumber, and outputs to Parquet. Features per-domain adaptive throttling, Tor proxy support, checkpoint/resume, and content deduplication.
+Ethical, async web scraper for financial research. Searches DuckDuckGo, fetches pages with fingerprint rotation, extracts clean text via trafilatura, and outputs to Parquet.
 
----
-
-## Repository Structure
-
-```
-financial_webscrap/
-│
-├── financial_scraper/              Main package (v0.1.0)
-│   ├── pyproject.toml              Package definition & dependencies
-│   ├── README.md                   Package-level documentation
-│   ├── DOCUMENTATION.md            Full module reference & dev history
-│   ├── config/                     Query files & domain exclusion list
-│   ├── src/financial_scraper/      Source code (17 modules)
-│   └── _run_50.py                  Standalone runner script
-│
-└── README.md                       This file
-```
+![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue)
+![Tests](https://img.shields.io/github/actions/workflow/status/HydrAI/financial-scraper/tests.yml?label=tests)
+![Coverage](https://img.shields.io/badge/coverage-89%25-brightgreen)
+![License: MIT](https://img.shields.io/badge/license-MIT-green)
 
 ---
 
-## financial_scraper Package
+## Features
 
-The core of this repo. A modular Python package that replaces the monolithic v18 scraper.
-
-### Pipeline
-
-```
-Query file  -->  DDG Search  -->  Async Fetch  -->  Extract  -->  Dedup  -->  Parquet
-                 (text/news)     (aiohttp +        (trafilatura    (URL +     (append mode,
-                  + retry +       fingerprints,      + pdfplumber    content    merged_by_year
-                  cooldown)       throttle,          + cleanup)      SHA256)    schema)
-                                  robots.txt,
-                                  optional Tor)
-```
-
-### Key Features
-
-- **DuckDuckGo search** — text and news modes, tenacity retry with exponential backoff, adaptive cooldown on rate limits
-- **Async HTTP** — aiohttp with 5 rotating browser fingerprint profiles, per-domain adaptive throttling, robots.txt compliance
-- **Tor integration** — SOCKS5 proxy, automatic circuit renewal every N queries or on rate limit
-- **Content extraction** — trafilatura 2-pass (precision then fallback), pdfplumber for PDFs, boilerplate regex cleanup
-- **Deduplication** — URL normalization + content SHA256 hashing
-- **Output** — Parquet (snappy compression, append mode) + optional JSONL, schema-compatible with `merged_by_year` pipeline
-- **Checkpoint/resume** — atomic JSON saves after each query, crash recovery
+- **Ethical by default** — robots.txt compliance, adaptive per-domain rate limiting
+- **DuckDuckGo search** — text and news modes, no API keys required
+- **Async HTTP** — aiohttp with configurable concurrency and per-domain throttling
+- **HTML + PDF extraction** — trafilatura 2-pass for HTML, pdfplumber for PDFs
+- **Content deduplication** — URL normalization + SHA256 content hashing
+- **Checkpoint/resume** — atomic saves after each query, crash recovery
+- **Fingerprint rotation** — 5 browser profiles to reduce bot detection
+- **Parquet + JSONL output** — columnar storage with snappy compression
+- **Date filtering** — keep only pages within a date range
+- **Tor support** — SOCKS5 proxy with automatic circuit renewal
 - **Stealth mode** — reduced concurrency + longer delays preset
 
-### Quick Start
+---
+
+## Quick Start
 
 ```bash
-cd financial_scraper
-pip install -e .
-
-# Run a news search
-financial-scraper --queries-file config/commodities_50.txt --search-type news --output-dir runs --jsonl
-
-# Stealth + Tor for large runs
-financial-scraper --queries-file config/commodities_300.txt --stealth --use-tor --resume --output-dir runs
+pip install -e ./financial_scraper
+financial-scraper --queries-file queries.txt --search-type news --output-dir ./runs
 ```
-
-See [`financial_scraper/README.md`](financial_scraper/README.md) for full CLI reference and usage examples.
 
 ---
 
-## Constraints
+## Prerequisites
 
-- **Python 3.11+**, Windows (Spyder IDE) primary environment
-- **DuckDuckGo only** — no Google API, no API keys
-- **No Selenium/Playwright** — lightweight async only
-- **No LLM/AI APIs** in the scraping pipeline
+| Requirement | Minimum | Check with |
+|-------------|---------|------------|
+| Python | 3.10+ | `python --version` |
+| pip | 21.0+ | `pip --version` |
+| git | any | `git --version` |
+
+---
+
+## Installation
+
+### From source (recommended)
+
+```bash
+git clone https://github.com/HydrAI/financial-scraper.git
+cd financial-scraper
+
+# Create a virtual environment (recommended)
+python -m venv .venv
+# Windows: .venv\Scripts\activate
+# macOS/Linux: source .venv/bin/activate
+
+cd financial_scraper
+pip install -e .
+```
+
+### Verify installation
+
+```bash
+python -m financial_scraper --help
+```
+
+### With dev dependencies (for running tests)
+
+```bash
+pip install -e ".[dev]"
+python -m pytest tests/ -v
+```
+
+### Tor setup (optional)
+
+Install [Tor Browser](https://www.torproject.org/) (uses port 9150) or the Tor daemon (port 9050), then add `--use-tor` to your commands. See the [User Guide](docs/user-guide.md#using-tor) for detailed setup instructions.
+
+---
+
+## Usage Examples
+
+### Basic query file scraping
+
+```bash
+financial-scraper --queries-file queries.txt --output-dir ./runs
+```
+
+### Date-filtered news scraping
+
+```bash
+financial-scraper \
+  --queries-file queries.txt \
+  --search-type news \
+  --date-from 2025-01-01 \
+  --date-to 2025-12-31 \
+  --output-dir ./runs
+```
+
+### Tor-routed privacy mode
+
+```bash
+financial-scraper \
+  --queries-file queries.txt \
+  --use-tor \
+  --tor-socks-port 9150 \
+  --output-dir ./runs
+```
+
+### Stealth mode for large runs
+
+```bash
+financial-scraper \
+  --queries-file queries.txt \
+  --stealth \
+  --resume \
+  --output-dir ./runs
+```
+
+### Resume an interrupted job
+
+```bash
+financial-scraper \
+  --queries-file queries.txt \
+  --resume \
+  --output-dir ./runs
+```
+
+### JSONL output alongside Parquet
+
+```bash
+financial-scraper \
+  --queries-file queries.txt \
+  --output-dir ./runs \
+  --jsonl
+```
+
+---
+
+## Query File Format
+
+One query per line. Lines starting with `#` are comments:
+
+```text
+# Energy
+crude oil futures market outlook
+natural gas futures winter forecast
+
+# Metals
+gold futures price prediction
+copper futures demand supply
+
+# Macro
+Federal Reserve interest rate decision
+treasury yield curve inversion signal
+```
+
+See [`docs/examples/`](docs/examples/) for ready-to-use query files.
+
+---
+
+## Output Format
+
+### Parquet schema
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `company` | string | Search query (maps to entity/topic) |
+| `title` | string | Page title |
+| `link` | string | Source URL |
+| `snippet` | string | First 300 characters of content |
+| `date` | timestamp | Publication date |
+| `source` | string | Domain name |
+| `full_text` | string | Full extracted text |
+| `source_file` | string | Provenance tag |
+
+### Reading output
+
+```python
+import pandas as pd
+
+df = pd.read_parquet("runs/20260215_143000/scrape_20260215_143000.parquet")
+print(f"{len(df)} documents from {df['source'].nunique()} domains")
+```
+
+### JSONL
+
+When `--jsonl` is enabled, a `.jsonl` file is written alongside the Parquet file with the same schema (one JSON object per line).
+
+---
+
+## Python API
+
+```python
+import asyncio
+from pathlib import Path
+from financial_scraper import ScraperConfig, ScraperPipeline
+
+config = ScraperConfig(
+    queries_file=Path("queries.txt"),
+    search_type="news",
+    max_results_per_query=10,
+    output_dir=Path("./runs"),
+    stealth=True,
+    date_from="2025-01-01",
+    date_to="2025-12-31",
+    resume=True,
+)
+
+pipeline = ScraperPipeline(config)
+asyncio.run(pipeline.run())
+```
+
+`ScraperConfig` is a frozen dataclass with 30+ fields covering search, fetch, extraction, Tor, and output settings. See the [User Guide — Configuration Reference](docs/user-guide.md#configuration-reference) for the full field table with types and defaults.
+
+See [`docs/examples/`](docs/examples/) for more Python examples.
+
+---
+
+## CLI Reference
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--queries-file FILE` | *required* | Text file with one query per line |
+| `--output FILE` | — | Explicit `.parquet` output path |
+| `--output-dir DIR` | `.` | Base directory for timestamped output folders |
+| `--jsonl` | off | Also write JSONL alongside Parquet |
+| `--search-type {text,news}` | `text` | DuckDuckGo search mode |
+| `--max-results N` | `20` | Results per query |
+| `--timelimit {d,w,m,y}` | — | DDG time filter |
+| `--region CODE` | `wt-wt` | DDG region code |
+| `--backend {auto,api,html,lite}` | `auto` | DDG backend |
+| `--proxy URL` | — | HTTP/SOCKS5 proxy for searches |
+| `--use-tor` | off | Route fetches through Tor |
+| `--tor-socks-port PORT` | `9150` | Tor SOCKS5 port |
+| `--tor-control-port PORT` | `9051` | Tor control port |
+| `--tor-password PASS` | — | Tor control password |
+| `--tor-renew-every N` | `20` | Renew Tor circuit every N queries |
+| `--concurrent N` | `10` | Max parallel fetches |
+| `--per-domain N` | `3` | Max concurrent fetches per domain |
+| `--timeout SECS` | `20` | Fetch timeout |
+| `--stealth` | off | Low-profile mode (concurrency 4, delays 5-8s) |
+| `--no-robots` | off | Skip robots.txt checking |
+| `--min-words N` | `100` | Minimum word count to keep |
+| `--target-language LANG` | — | ISO language filter (e.g. `en`) |
+| `--no-favor-precision` | off | Disable trafilatura precision mode |
+| `--date-from YYYY-MM-DD` | — | Keep pages after this date |
+| `--date-to YYYY-MM-DD` | — | Keep pages before this date |
+| `--resume` | off | Resume from last checkpoint |
+| `--checkpoint FILE` | `.scraper_checkpoint.json` | Checkpoint file path |
+| `--exclude-file FILE` | — | Domain exclusion list |
+
+---
+
+## Tips
+
+- **Use `--search-type news`** for financial content — less rate-limited and more relevant than text search
+- **Expect 30-50% fetch failures** — many financial sites block automated access (Cloudflare, paywalls). This is normal; the pipeline logs and continues
+- **Niche queries returning 0 results?** Simplify your phrasing (e.g., `grain market` instead of `oats commodity analysis`)
+- **Start small** — test with 5-10 queries before scaling to hundreds
+- **Windows users:** If `financial-scraper` gives "Access is denied", use `python -m financial_scraper` instead
+- **Tor users:** Start Tor Browser (port 9150) or the Tor daemon (port 9050) *before* running with `--use-tor`
+
+## Troubleshooting
+
+| Problem | Cause | Fix |
+|---------|-------|-----|
+| `Found 0 results` for all queries | DuckDuckGo rate limiting | Wait 5-10 min, enable `--use-tor` or `--stealth` |
+| `ModuleNotFoundError` | Package not installed | Activate venv, run `pip install -e .` from `financial_scraper/` dir |
+| High fetch failure (>60%) | Sites blocking scrapers | Use `--search-type news`, add domains to exclusion list |
+| Empty Parquet output | Word count filter or date filter too strict | Try `--min-words 50`, broaden date range |
+
+For detailed troubleshooting, see the [User Guide — Troubleshooting & FAQ](docs/user-guide.md#troubleshooting--faq).
+
+---
+
+## Architecture
+
+```
+Query File ──> DDG Search ──> Async Fetch ──> Extract ──> Dedup + Store
+                (text/news     (aiohttp,       (trafilatura,   (URL+SHA256,
+                 retry,         fingerprints,    pdfplumber,     Parquet,
+                 cooldown)      throttle,        cleanup,        JSONL,
+                                robots.txt,      date filter)    checkpoint)
+                                Tor)
+```
+
+The pipeline is modular — each stage is an independent module under `src/financial_scraper/`. See [`docs/architecture.md`](docs/architecture.md) for the full module map and design rationale.
 
 ---
 
 ## Documentation
 
-| File | Content |
-|------|---------|
-| [`financial_scraper/README.md`](financial_scraper/README.md) | Installation, quick start, CLI reference, output format, tips |
-| [`financial_scraper/DOCUMENTATION.md`](financial_scraper/DOCUMENTATION.md) | Full module reference, design decisions, testing results, development history |
+- **[User Guide](docs/user-guide.md)** — Detailed installation, configuration reference, scaling guide, and troubleshooting
+- **[Architecture](docs/architecture.md)** — Module map, data flow, and design rationale
+- **[Ethical Scraping](docs/ethical-scraping.md)** — Rate limiting strategy, robots.txt, best practices
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup, testing, and PR workflow.
 
 ---
 
 ## License
 
-For research and educational purposes.
+[MIT](LICENSE)

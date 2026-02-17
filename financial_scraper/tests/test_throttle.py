@@ -69,6 +69,46 @@ class TestReportFailure5xx:
         assert t._extra_delays["example.com"] == 5.0
 
 
+class TestAcquireRelease:
+    def test_acquire_creates_limiter(self):
+        t = DomainThrottler()
+        asyncio.run(t.acquire("example.com"))
+        assert "example.com" in t._limiters
+        assert "example.com" in t._semaphores
+        t.release("example.com")
+
+    def test_release_unknown_domain_is_noop(self):
+        t = DomainThrottler()
+        t.release("unknown.com")  # should not raise
+
+    def test_acquire_with_extra_delay(self):
+        t = DomainThrottler()
+        t._extra_delays["example.com"] = 0.01  # small delay
+
+        async def _test():
+            await t.acquire("example.com")
+            t.release("example.com")
+
+        asyncio.run(_test())  # should complete without error
+
+    def test_semaphore_limits_concurrency(self):
+        t = DomainThrottler(max_per_domain=1)
+
+        acquired = []
+
+        async def _test():
+            await t.acquire("example.com")
+            acquired.append(1)
+            # Second acquire would block, but we release first
+            t.release("example.com")
+            await t.acquire("example.com")
+            acquired.append(2)
+            t.release("example.com")
+
+        asyncio.run(_test())
+        assert len(acquired) == 2
+
+
 class TestMaxDelayCap:
     def test_cannot_exceed_max(self):
         t = DomainThrottler(max_delay=5.0)
