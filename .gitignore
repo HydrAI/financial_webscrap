@@ -71,6 +71,10 @@ $RECYCLE.BIN/
 # WIP / manual test scripts
 _test_mcp_live.py
 
+# Session notes (local only)
+docs/TODO.md
+docs/RECAP.md
+
 # Scraper run outputs (large, generated)
 financial_scraper/runs/
 
