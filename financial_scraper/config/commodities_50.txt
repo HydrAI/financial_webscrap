@@ -1,0 +1,59 @@
+# Commodity futures - 50 queries across energy, metals, agriculture, softs, livestock
+# Energy
+crude oil WTI futures price
+Brent crude oil market outlook
+natural gas futures forecast
+heating oil futures market
+RBOB gasoline futures price
+coal commodity market analysis
+uranium spot price forecast
+# Precious metals
+gold futures price analysis
+silver futures market forecast
+platinum futures demand outlook
+palladium commodity supply chain
+# Base metals
+copper futures price forecast
+aluminum commodity market 2025
+zinc futures supply demand
+nickel futures battery demand
+tin commodity market outlook
+lead futures price analysis
+iron ore futures market
+# Grains
+wheat futures price outlook
+corn futures market analysis
+soybean futures price forecast
+soybean oil futures market
+soybean meal commodity demand
+rice futures price outlook
+oats commodity market
+# Softs
+coffee futures price forecast
+cocoa commodity market crisis
+sugar futures price outlook
+cotton futures market analysis
+orange juice futures price
+rubber commodity demand outlook
+lumber futures price forecast
+# Livestock
+live cattle futures price
+feeder cattle market outlook
+lean hogs futures forecast
+# Exotic / niche
+lithium commodity price forecast
+cobalt supply chain mining
+rare earth metals market
+molybdenum commodity demand
+vanadium battery storage market
+manganese commodity mining outlook
+graphite commodity EV demand
+potash fertilizer commodity price
+phosphate commodity market
+# Agricultural specialty
+palm oil futures price outlook
+canola rapeseed futures market
+dairy futures milk price
+wool commodity market outlook
+barley malt commodity price
+sunflower oil commodity market

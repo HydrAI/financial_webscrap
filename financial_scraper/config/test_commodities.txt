@@ -1,0 +1,4 @@
+# Commodity futures test queries
+wheat futures price outlook 2025
+silver futures investment analysis
+corn futures supply demand

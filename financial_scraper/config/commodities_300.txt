@@ -1,0 +1,349 @@
+# Commodity futures - 300+ queries across energy, metals, agriculture, softs, livestock, niche
+# ============================================================
+# ENERGY - Crude & Refined
+# ============================================================
+crude oil WTI futures price
+Brent crude oil market outlook
+WTI crude oil supply disruption
+OPEC crude oil production cuts
+US shale oil output forecast
+crude oil inventory levels analysis
+crude oil tanker shipping rates
+oil refinery capacity utilization
+# Natural Gas
+natural gas futures forecast
+natural gas storage levels outlook
+LNG liquefied natural gas export market
+European natural gas TTF price
+Henry Hub natural gas price analysis
+natural gas pipeline capacity constraints
+natural gas demand winter forecast
+# Refined Products
+heating oil futures market
+RBOB gasoline futures price
+diesel fuel commodity price outlook
+jet fuel kerosene commodity market
+naphtha petrochemical feedstock price
+fuel oil bunker market analysis
+# Coal & Nuclear
+coal commodity market analysis
+thermal coal price forecast
+coking coal metallurgical market
+coal export market Australia Indonesia
+uranium spot price forecast
+uranium enrichment supply chain
+nuclear fuel market outlook
+# Renewables & Carbon
+carbon credit emissions trading price
+EU ETS carbon allowance market
+renewable energy certificate price
+hydrogen green commodity market
+ethanol biofuel commodity price
+biodiesel feedstock commodity market
+
+# ============================================================
+# PRECIOUS METALS
+# ============================================================
+gold futures price analysis
+gold bar bullion demand outlook
+gold ETF holdings analysis
+gold central bank reserves purchasing
+gold mining production costs
+gold jewelry demand India China
+silver futures market forecast
+silver industrial demand solar panels
+silver coin bullion investment demand
+silver mining supply deficit
+platinum futures demand outlook
+platinum automotive catalyst demand
+platinum hydrogen fuel cell market
+platinum mining South Africa supply
+palladium commodity supply chain
+palladium autocatalyst demand forecast
+palladium recycling supply market
+rhodium precious metal price outlook
+iridium rare precious metal market
+ruthenium precious metal demand
+
+# ============================================================
+# BASE & INDUSTRIAL METALS
+# ============================================================
+copper futures price forecast
+copper mining supply Chile Peru
+copper demand electrification forecast
+copper scrap recycling market
+copper cathode premium market
+aluminum commodity market outlook
+aluminum smelter energy costs
+aluminum alloy demand automotive
+aluminum bauxite supply chain
+alumina refining commodity market
+zinc futures supply demand
+zinc galvanizing demand construction
+zinc mining concentrate market
+nickel futures battery demand
+nickel sulfate EV battery market
+nickel pig iron stainless steel
+nickel Indonesia supply policy
+tin commodity market outlook
+tin solder electronics demand
+tin mining supply Myanmar Indonesia
+lead futures price analysis
+lead acid battery demand market
+lead recycling commodity supply
+iron ore futures market
+iron ore pellet premium market
+iron ore supply BHP Rio Tinto
+steel rebar commodity price
+steel HRC hot rolled coil market
+stainless steel commodity price
+manganese commodity mining outlook
+manganese battery cathode demand
+silicon metal commodity price
+silicon wafer semiconductor market
+chromium ferrochrome market price
+titanium dioxide commodity market
+tungsten commodity supply China
+antimony commodity price forecast
+bismuth commodity market outlook
+magnesium metal commodity price
+
+# ============================================================
+# BATTERY & EV METALS
+# ============================================================
+lithium commodity price forecast
+lithium carbonate spot price
+lithium hydroxide battery grade market
+lithium spodumene mining Australia
+lithium brine extraction South America
+cobalt supply chain mining
+cobalt DRC Congo supply risk
+cobalt sulfate battery market
+cobalt recycling urban mining
+vanadium battery storage market
+vanadium redox flow battery demand
+graphite commodity EV demand
+graphite anode synthetic natural market
+graphite flake mining supply
+rare earth metals market
+neodymium magnet rare earth price
+praseodymium rare earth demand
+dysprosium rare earth supply
+lanthanum cerium rare earth market
+gallium semiconductor commodity supply
+germanium commodity market outlook
+indium ITO commodity price
+tellurium solar cell commodity
+selenium commodity market price
+
+# ============================================================
+# FERTILIZERS & CHEMICALS
+# ============================================================
+potash fertilizer commodity price
+potash muriate MOP market price
+phosphate commodity market
+phosphate rock fertilizer supply
+DAP diammonium phosphate price
+MAP monoammonium phosphate market
+urea fertilizer commodity price
+ammonia commodity market price
+ammonium nitrate fertilizer market
+sulfur commodity price outlook
+sulfuric acid commodity market
+caustic soda sodium hydroxide price
+soda ash commodity market demand
+chlorine commodity market price
+methanol commodity price forecast
+propylene commodity market outlook
+benzene commodity price analysis
+toluene xylene commodity market
+polyethylene plastic commodity price
+polypropylene commodity market outlook
+PVC commodity price forecast
+natural rubber latex commodity
+
+# ============================================================
+# GRAINS & OILSEEDS
+# ============================================================
+wheat futures price outlook
+wheat harvest forecast global supply
+hard red winter wheat market
+soft red winter wheat price
+spring wheat durum commodity market
+wheat export Russia Ukraine supply
+corn futures market analysis
+corn ethanol demand outlook
+corn feed demand livestock market
+corn planting acreage forecast
+soybean futures price forecast
+soybean crush margin analysis
+soybean export China demand
+soybean planting intentions market
+soybean oil futures market
+soybean meal commodity demand
+soybean meal animal feed market
+rice futures price outlook
+rice export India Thailand Vietnam
+basmati rice commodity market
+oats commodity market
+oats feed demand horse market
+canola rapeseed futures market
+rapeseed oil biodiesel demand
+barley malt commodity price
+barley feed commodity market
+sorghum milo commodity price
+millet commodity market outlook
+rye grain commodity price
+flaxseed linseed commodity market
+
+# ============================================================
+# SOFTS & TROPICAL
+# ============================================================
+coffee futures price forecast
+arabica coffee futures market
+robusta coffee price outlook
+coffee crop Brazil harvest forecast
+coffee inventory ICE exchange
+cocoa commodity market crisis
+cocoa price West Africa supply
+cocoa butter powder market
+cocoa grinding demand forecast
+sugar futures price outlook
+raw sugar No 11 futures market
+white sugar premium market
+sugar cane ethanol Brazil market
+sugar beet production Europe
+cotton futures market analysis
+cotton planting acreage outlook
+cotton yarn textile demand
+cotton export US India market
+orange juice futures price
+orange juice crop Florida forecast
+rubber commodity demand outlook
+natural rubber tire demand market
+synthetic rubber commodity price
+lumber futures price forecast
+lumber housing construction demand
+softwood lumber supply Canada market
+hardwood lumber commodity price
+palm oil futures price outlook
+palm oil biodiesel demand
+palm oil Indonesia Malaysia supply
+coconut oil commodity market
+olive oil commodity price outlook
+
+# ============================================================
+# LIVESTOCK & DAIRY
+# ============================================================
+live cattle futures price
+live cattle feedlot market
+cattle slaughter pace forecast
+beef export market demand
+beef wholesale boxed price
+feeder cattle market outlook
+feeder cattle auction price
+lean hogs futures forecast
+pork belly commodity price
+pork export China demand market
+hog slaughter production forecast
+poultry chicken commodity market
+egg commodity price outlook
+dairy futures milk price
+cheese commodity market price
+butter commodity market outlook
+whey protein commodity price
+milk powder SMP WMP market
+wool commodity market outlook
+lamb sheep commodity price market
+
+# ============================================================
+# SPECIALTY AGRICULTURE
+# ============================================================
+palm oil futures price outlook
+sunflower oil commodity market
+peanut groundnut commodity price
+cashew nut commodity market
+almond commodity price California
+walnut commodity market outlook
+pistachio commodity price forecast
+hazelnut commodity market Turkey
+cocoa butter equivalent CBE market
+vanilla commodity price forecast
+cinnamon spice commodity market
+pepper black white commodity price
+clove spice commodity market
+cardamom spice commodity price
+turmeric commodity market outlook
+ginger commodity price forecast
+tea commodity market price
+green tea commodity demand
+honey commodity market outlook
+maple syrup commodity price
+tobacco leaf commodity market
+hops commodity craft beer demand
+wine grape commodity market
+dried fruit raisin commodity price
+
+# ============================================================
+# WATER, ENVIRONMENTAL & MISC
+# ============================================================
+water futures commodity market
+desalination water commodity outlook
+sand gravel aggregate commodity
+cement clinker commodity price
+gypsum commodity market
+limestone calcium carbonate market
+kaolin clay commodity price
+talc commodity market outlook
+feldspar commodity market price
+mica commodity mining market
+barite drilling commodity price
+bentonite commodity market
+diatomite commodity market price
+perlite commodity mining market
+vermiculite commodity price
+zeolite commodity market outlook
+salt commodity market industrial
+borax boron commodity price
+fluorspar commodity market outlook
+helium commodity supply shortage
+lithium iron phosphate LFP market
+sodium ion battery commodity outlook
+copper wire rod demand market
+aluminum can sheet demand
+zinc oxide commodity market
+nickel matte processing market
+tin plate packaging demand
+lead concentrate mining market
+iron ore fines lump premium
+steel scrap commodity price
+ferrosilicon commodity market
+ferrovanadium commodity price
+molybdenum commodity demand
+molybdenum steel alloy market
+niobium ferroniobium commodity price
+zirconium commodity market outlook
+hafnium commodity price
+tantalum capacitor commodity market
+beryllium commodity market price
+scandium commodity price outlook
+yttrium rare earth commodity
+cobalt blue pigment market
+lithium pegmatite mining market
+graphite electrode steel market
+natural gas NGL liquids price
+propane commodity price outlook
+butane commodity market price
+asphalt bitumen commodity market
+petroleum coke commodity price
+paraxylene PX commodity market
+styrene commodity price forecast
+acetic acid commodity market
+ethylene glycol commodity price
+vinyl acetate monomer market
+crude palm kernel oil price
+shea butter commodity market
+jojoba oil commodity price
+castor oil commodity market
+tung oil commodity price
+linseed oil commodity market

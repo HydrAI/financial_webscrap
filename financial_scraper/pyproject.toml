@@ -1,0 +1,33 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "financial-scraper"
+version = "0.1.0"
+description = "Modular financial web scraper using DuckDuckGo search"
+requires-python = ">=3.11"
+dependencies = [
+    "duckduckgo-search>=8.0",
+    "aiohttp>=3.9",
+    "aiohttp-socks>=0.8",
+    "aiolimiter>=1.1",
+    "trafilatura>=2.0",
+    "beautifulsoup4>=4.12",
+    "lxml>=5.0",
+    "pdfplumber>=0.10",
+    "pyarrow>=15.0",
+    "pandas>=2.0",
+    "chardet>=5.0",
+    "tenacity>=8.0",
+    "stem>=1.8",
+]
+
+[project.optional-dependencies]
+dev = ["pytest", "pytest-asyncio", "pytest-cov"]
+
+[project.scripts]
+financial-scraper = "financial_scraper.main:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
