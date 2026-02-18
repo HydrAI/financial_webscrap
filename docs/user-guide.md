@@ -367,6 +367,14 @@ The `ScraperConfig` frozen dataclass holds all settings. Every CLI flag maps to 
 | `stealth` | `bool` | `False` | `--stealth` | Enable stealth mode (overrides concurrency/delay) |
 | `respect_robots` | `bool` | `True` | `--no-robots` | Check robots.txt before fetching |
 
+#### Crawl settings
+
+| Field | Type | Default | CLI flag | Description |
+|-------|------|---------|----------|-------------|
+| `crawl` | `bool` | `False` | `--crawl` | Follow links from fetched pages (BFS) |
+| `crawl_depth` | `int` | `2` | `--crawl-depth` | Max BFS depth (1 = follow one level of links) |
+| `max_pages_per_domain` | `int` | `50` | `--max-pages-per-domain` | Cap pages fetched per domain during crawl |
+
 #### Extract settings
 
 | Field | Type | Default | CLI flag | Description |
@@ -452,6 +460,22 @@ financial-scraper --queries-file queries.txt --search-type news --stealth --use-
 **Why Tor?** Distributes requests across IP addresses. Circuit renews every 20 queries by default, and auto-renews if rate-limited.
 
 **Why resume?** Large runs take 30-60+ minutes. If anything interrupts (network drop, power loss, Ctrl+C), `--resume` picks up from the last completed query instead of restarting.
+
+### Adding deep crawl
+
+Deep crawl multiplies your content by following same-domain links from fetched pages. Add `--crawl` to any of the above:
+
+```bash
+# Small run + crawl
+financial-scraper --queries-file queries.txt --search-type news --crawl --crawl-depth 1 --max-pages-per-domain 5 --output-dir ./runs
+
+# Large run + crawl + stealth
+financial-scraper --queries-file queries.txt --search-type news --crawl --crawl-depth 2 --max-pages-per-domain 10 --stealth --use-tor --resume --output-dir ./runs --exclude-file config/exclude_domains.txt --jsonl
+```
+
+**How it works:** After fetching depth-0 pages (search results), the pipeline extracts `<a href>` links from the HTML, filters to same base domain (e.g., `blog.reuters.com` links are kept when coming from `reuters.com`), and queues them for the next depth. This repeats until `crawl_depth` is reached.
+
+**Caps:** `max_pages_per_domain` limits how many pages are fetched per domain across all depths. The total crawl URLs per depth are also capped to prevent runaway crawls on link-heavy news sites.
 
 ### Monitoring progress
 
@@ -576,6 +600,22 @@ config = ScraperConfig(
     # JSONL output (auto-resolved when using CLI, manual when using API)
     jsonl_path=Path("./runs/output.jsonl"),
     # Domain exclusions
+    exclude_file=Path("config/exclude_domains.txt"),
+)
+```
+
+### Deep crawl from Python
+
+```python
+config = ScraperConfig(
+    queries_file=Path("queries.txt"),
+    search_type="news",
+    max_results_per_query=5,
+    # Enable crawl: follow same-domain links from fetched pages
+    crawl=True,
+    crawl_depth=1,                  # Follow links one level deep
+    max_pages_per_domain=5,         # Cap per domain to avoid runaway crawls
+    output_dir=Path("./runs"),
     exclude_file=Path("config/exclude_domains.txt"),
 )
 ```

@@ -69,8 +69,9 @@ $RECYCLE.BIN/
 .scraper_checkpoint.json
 *.checkpoint.json
 
-# WIP / manual test scripts
-_test_mcp_live.py
+# WIP / manual test & run scripts
+_test_*.py
+_run_*.py
 
 # Session notes (local only)
 docs/TODO.md

@@ -38,6 +38,9 @@ def _make_args(**overrides):
         "exclude_file": None,
         "checkpoint": ".scraper_checkpoint.json",
         "resume": False,
+        "crawl": False,
+        "crawl_depth": 2,
+        "max_pages_per_domain": 50,
     }
     defaults.update(overrides)
     return argparse.Namespace(**defaults)
@@ -118,3 +121,13 @@ class TestBuildConfig:
         args = _make_args(output=out_file, no_favor_precision=True)
         cfg = build_config(args)
         assert cfg.favor_precision is False
+
+    def test_crawl_flags(self, tmp_path):
+        out_file = str(tmp_path / "out.parquet")
+        args = _make_args(
+            output=out_file, crawl=True, crawl_depth=3, max_pages_per_domain=25,
+        )
+        cfg = build_config(args)
+        assert cfg.crawl is True
+        assert cfg.crawl_depth == 3
+        assert cfg.max_pages_per_domain == 25

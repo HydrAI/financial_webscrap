@@ -17,6 +17,7 @@ from .extract.html import HTMLExtractor
 from .extract.pdf import PDFExtractor
 from .extract.clean import TextCleaner
 from .extract.date_filter import DateFilter
+from .extract.links import extract_links, filter_links_same_domain
 from .store.dedup import Deduplicator
 from .store.output import ParquetWriter, JSONLWriter, make_source_file_tag
 from .store.markdown import MarkdownWriter
@@ -47,6 +48,7 @@ class ScraperPipeline:
         )
         self._exclusions: set[str] = set()
         self._pages_extracted = 0
+        self._domain_page_counts: Counter = Counter()
         # Stats
         self._method_counter: Counter = Counter()
         self._domain_counter: Counter = Counter()
@@ -133,95 +135,157 @@ class ScraperPipeline:
                 self._checkpoint.mark_query_done(query)
                 continue
 
-            # Fetch
-            throttler = DomainThrottler(
-                max_per_domain=self._config.max_concurrent_per_domain
-            )
-            robot_checker = RobotChecker()
-            urls = [sr.url for sr in filtered]
+            # BFS crawl loop
+            all_seen_urls: set[str] = set()
+            # url -> query mapping so crawled pages keep the original query
+            url_to_query: dict[str, str] = {}
+            urls_to_fetch: list[str] = []
+            for sr in filtered:
+                urls_to_fetch.append(sr.url)
+                url_to_query[sr.url] = sr.query
+                all_seen_urls.add(sr.url)
 
-            async with FetchClient(
-                self._config, throttler, robot_checker, self._tor
-            ) as client:
-                fetch_results = await client.fetch_batch(urls)
+            current_depth = 0
+            max_depth = self._config.crawl_depth if self._config.crawl else 0
+            all_records: list[dict] = []
+            total_success = 0
+            total_failed = 0
 
-            # Process results
-            records = []
-            success = 0
-            failed = 0
-            for sr, fr in zip(filtered, fetch_results):
-                self._checkpoint.mark_url_fetched(sr.url)
+            while urls_to_fetch:
+                depth_label = f"depth {current_depth}"
+                logger.info(
+                    f"  [{depth_label}] Fetching {len(urls_to_fetch)} URLs"
+                )
 
-                if fr.error:
-                    self._checkpoint.mark_url_failed(sr.url)
-                    failed += 1
-                    continue
+                throttler = DomainThrottler(
+                    max_per_domain=self._config.max_concurrent_per_domain
+                )
+                robot_checker = RobotChecker()
 
-                # Extract content
-                if fr.content_bytes and (
-                    "application/pdf" in fr.content_type
-                    or sr.url.lower().endswith(".pdf")
-                ):
-                    ex = self._pdf_extractor.extract(fr.content_bytes, sr.url)
-                elif fr.html:
-                    ex = self._extractor.extract(fr.html, sr.url)
-                else:
-                    failed += 1
-                    continue
+                async with FetchClient(
+                    self._config, throttler, robot_checker, self._tor
+                ) as client:
+                    fetch_results = await client.fetch_batch(urls_to_fetch)
 
-                if ex.extraction_method == "failed" or ex.word_count < self._config.min_word_count:
-                    self._checkpoint.stats["failed_extractions"] += 1
-                    failed += 1
-                    continue
+                next_depth_urls: list[str] = []
 
-                # Date filter
-                if self._date_filter.is_active and not self._date_filter.passes(ex.date):
-                    continue
+                for url, fr in zip(urls_to_fetch, fetch_results):
+                    self._checkpoint.mark_url_fetched(url)
+                    source_query = url_to_query.get(url, query)
 
-                # Content dedup
-                if self._dedup.is_duplicate_content(ex.text):
-                    continue
+                    if fr.error:
+                        self._checkpoint.mark_url_failed(url)
+                        total_failed += 1
+                        continue
 
-                self._dedup.mark_seen(sr.url, ex.text)
-                self._method_counter[ex.extraction_method] += 1
-                domain = self._extract_domain(sr.url)
-                self._domain_counter[domain] += 1
+                    # Extract content
+                    is_pdf = fr.content_bytes and (
+                        "application/pdf" in fr.content_type
+                        or url.lower().endswith(".pdf")
+                    )
+                    if is_pdf:
+                        ex = self._pdf_extractor.extract(fr.content_bytes, url)
+                    elif fr.html:
+                        ex = self._extractor.extract(fr.html, url)
+                    else:
+                        total_failed += 1
+                        continue
 
-                # Snippet: first 300 chars of content
-                snippet = (ex.text[:300] + "...") if len(ex.text) > 300 else ex.text
+                    # Count this page for domain cap (before link extraction)
+                    fetch_domain = self._extract_domain(url)
+                    self._domain_page_counts[fetch_domain] += 1
 
-                record = {
-                    "company": sr.query,
-                    "title": ex.title or "",
-                    "link": sr.url,
-                    "snippet": snippet,
-                    "date": ex.date or "",
-                    "source": domain,
-                    "full_text": ex.text,
-                    "source_file": make_source_file_tag(
-                        sr.query, ex.date, self._config.search_type
-                    ),
-                }
-                records.append(record)
-                success += 1
-                self._checkpoint.stats["total_pages"] += 1
-                self._checkpoint.stats["total_words"] += ex.word_count
+                    # Crawl: extract links from HTML for next depth
+                    if (
+                        self._config.crawl
+                        and current_depth < max_depth
+                        and fr.html
+                        and not is_pdf
+                    ):
+                        raw_links = extract_links(fr.html, url)
+                        source_domain = self._extract_domain(url)
+                        new_links = filter_links_same_domain(
+                            raw_links,
+                            source_domain,
+                            self._exclusions,
+                            all_seen_urls,
+                            self._domain_page_counts,
+                            self._config.max_pages_per_domain,
+                        )
+                        for link in new_links:
+                            if self._checkpoint.is_url_fetched(link):
+                                continue
+                            if self._dedup.is_duplicate_url(link):
+                                continue
+                            # Hard cap: never queue more than max_pages_per_domain total crawl URLs per depth
+                            if len(next_depth_urls) >= self._config.max_pages_per_domain:
+                                break
+                            all_seen_urls.add(link)
+                            url_to_query[link] = source_query
+                            next_depth_urls.append(link)
 
-            # Write batch
-            if records:
-                self._parquet_writer.append(records)
+                    if ex.extraction_method == "failed" or ex.word_count < self._config.min_word_count:
+                        self._checkpoint.stats["failed_extractions"] += 1
+                        total_failed += 1
+                        continue
+
+                    # Date filter
+                    if self._date_filter.is_active and not self._date_filter.passes(ex.date):
+                        continue
+
+                    # Content dedup
+                    if self._dedup.is_duplicate_content(ex.text):
+                        continue
+
+                    self._dedup.mark_seen(url, ex.text)
+                    self._method_counter[ex.extraction_method] += 1
+                    domain = self._extract_domain(url)
+                    self._domain_counter[domain] += 1
+
+                    # Snippet: first 300 chars of content
+                    snippet = (ex.text[:300] + "...") if len(ex.text) > 300 else ex.text
+
+                    record = {
+                        "company": source_query,
+                        "title": ex.title or "",
+                        "link": url,
+                        "snippet": snippet,
+                        "date": ex.date or "",
+                        "source": domain,
+                        "full_text": ex.text,
+                        "source_file": make_source_file_tag(
+                            source_query, ex.date, self._config.search_type
+                        ),
+                    }
+                    all_records.append(record)
+                    total_success += 1
+                    self._checkpoint.stats["total_pages"] += 1
+                    self._checkpoint.stats["total_words"] += ex.word_count
+
+                if next_depth_urls:
+                    logger.info(
+                        f"  [{depth_label}] Discovered {len(next_depth_urls)} "
+                        f"links for depth {current_depth + 1}"
+                    )
+
+                current_depth += 1
+                urls_to_fetch = next_depth_urls
+
+            # Write batch (all depths)
+            if all_records:
+                self._parquet_writer.append(all_records)
                 if self._jsonl_writer:
-                    self._jsonl_writer.append(records)
+                    self._jsonl_writer.append(all_records)
                 if self._markdown_writer:
-                    self._markdown_writer.append(records)
-                total_records += len(records)
+                    self._markdown_writer.append(all_records)
+                total_records += len(all_records)
 
             avg_words = (
-                sum(len(r["full_text"].split()) for r in records) // len(records)
-                if records else 0
+                sum(len(r["full_text"].split()) for r in all_records) // len(all_records)
+                if all_records else 0
             )
             logger.info(
-                f"  Query done: {success} new pages, {failed} failed, "
+                f"  Query done: {total_success} new pages, {total_failed} failed, "
                 f"avg {avg_words} words"
             )
 

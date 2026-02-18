@@ -426,3 +426,125 @@ class TestRunWithResults:
         )
         # No output file created since extraction couldn't proceed
         assert not (tmp_path / "out.parquet").exists()
+
+
+class TestCrawlFeature:
+    """Tests for the BFS deep-crawl feature."""
+
+    def _setup_crawl_pipeline(self, tmp_path, *, crawl, crawl_depth=2,
+                               max_pages_per_domain=50):
+        from financial_scraper.search.duckduckgo import SearchResult
+        from financial_scraper.fetch.client import FetchResult
+        from financial_scraper.extract.html import ExtractionResult
+
+        qf = tmp_path / "queries.txt"
+        qf.write_text("test query\n")
+
+        p = _make_pipeline(
+            tmp_path, crawl=crawl, crawl_depth=crawl_depth,
+            max_pages_per_domain=max_pages_per_domain,
+        )
+
+        html_with_links = (
+            '<html><body>'
+            '<a href="https://example.com/page2">Link</a>'
+            '<p>' + " ".join(["word"] * 50) + '</p>'
+            '</body></html>'
+        )
+
+        mock_searcher = MagicMock()
+        mock_searcher.search.return_value = [
+            SearchResult(url="https://example.com/page1", title="T1",
+                         snippet="S1", search_rank=1, query="test query"),
+        ]
+
+        extraction = ExtractionResult(
+            text=" ".join(["word"] * 50), title="Title", author=None,
+            date=None, word_count=50, extraction_method="trafilatura",
+            language=None,
+        )
+
+        return p, mock_searcher, html_with_links, extraction, SearchResult, FetchResult
+
+    def test_crawl_false_single_fetch(self, tmp_path):
+        """crawl=False: fetch_batch called once even if HTML has links."""
+        p, mock_searcher, html, extraction, SR, FR = self._setup_crawl_pipeline(
+            tmp_path, crawl=False,
+        )
+
+        with patch("financial_scraper.pipeline.DDGSearcher", return_value=mock_searcher):
+            with patch("financial_scraper.pipeline.FetchClient") as MockClient:
+                mock_instance = AsyncMock()
+                mock_instance.fetch_batch.return_value = [
+                    FR(url="https://example.com/page1", status=200,
+                       html=html, content_type="text/html",
+                       content_bytes=None, error=None, response_headers={}),
+                ]
+                MockClient.return_value.__aenter__ = AsyncMock(return_value=mock_instance)
+                MockClient.return_value.__aexit__ = AsyncMock(return_value=False)
+
+                with patch.object(p._extractor, "extract", return_value=extraction):
+                    asyncio.run(p.run())
+
+                assert mock_instance.fetch_batch.call_count == 1
+
+    def test_crawl_true_follows_links(self, tmp_path):
+        """crawl=True: fetch_batch called twice (depth 0 + depth 1)."""
+        p, mock_searcher, html, extraction, SR, FR = self._setup_crawl_pipeline(
+            tmp_path, crawl=True, crawl_depth=1,
+        )
+
+        depth1_html = '<html><body><p>' + " ".join(["other"] * 50) + '</p></body></html>'
+
+        call_count = [0]
+
+        def fake_fetch_batch(urls):
+            call_count[0] += 1
+            if call_count[0] == 1:
+                return [
+                    FR(url=urls[0], status=200, html=html,
+                       content_type="text/html", content_bytes=None,
+                       error=None, response_headers={}),
+                ]
+            else:
+                return [
+                    FR(url=u, status=200, html=depth1_html,
+                       content_type="text/html", content_bytes=None,
+                       error=None, response_headers={})
+                    for u in urls
+                ]
+
+        with patch("financial_scraper.pipeline.DDGSearcher", return_value=mock_searcher):
+            with patch("financial_scraper.pipeline.FetchClient") as MockClient:
+                mock_instance = AsyncMock()
+                mock_instance.fetch_batch.side_effect = fake_fetch_batch
+                MockClient.return_value.__aenter__ = AsyncMock(return_value=mock_instance)
+                MockClient.return_value.__aexit__ = AsyncMock(return_value=False)
+
+                with patch.object(p._extractor, "extract", return_value=extraction):
+                    asyncio.run(p.run())
+
+                assert mock_instance.fetch_batch.call_count == 2
+
+    def test_crawl_respects_max_pages_per_domain(self, tmp_path):
+        """crawl=True with max_pages_per_domain=1: no depth-1 fetch because cap hit."""
+        p, mock_searcher, html, extraction, SR, FR = self._setup_crawl_pipeline(
+            tmp_path, crawl=True, crawl_depth=1, max_pages_per_domain=1,
+        )
+
+        with patch("financial_scraper.pipeline.DDGSearcher", return_value=mock_searcher):
+            with patch("financial_scraper.pipeline.FetchClient") as MockClient:
+                mock_instance = AsyncMock()
+                mock_instance.fetch_batch.return_value = [
+                    FR(url="https://example.com/page1", status=200,
+                       html=html, content_type="text/html",
+                       content_bytes=None, error=None, response_headers={}),
+                ]
+                MockClient.return_value.__aenter__ = AsyncMock(return_value=mock_instance)
+                MockClient.return_value.__aexit__ = AsyncMock(return_value=False)
+
+                with patch.object(p._extractor, "extract", return_value=extraction):
+                    asyncio.run(p.run())
+
+                # Only depth-0 fetch; domain cap prevents depth-1
+                assert mock_instance.fetch_batch.call_count == 1

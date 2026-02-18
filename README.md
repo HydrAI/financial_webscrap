@@ -21,6 +21,7 @@ Ethical, async web scraper for financial research. Searches DuckDuckGo, fetches 
 - **Parquet + JSONL output**, columnar storage with snappy compression
 - **Date filtering**, keep only pages within a date range
 - **Tor support**, SOCKS5 proxy with automatic circuit renewal
+- **Deep crawl**, BFS link-following to discover content beyond search results (same-domain, depth-limited)
 - **Stealth mode**, reduced concurrency + longer delays preset
 
 ---
@@ -112,6 +113,18 @@ financial-scraper --queries-file queries.txt --stealth --resume --output-dir ./r
 financial-scraper --queries-file queries.txt --resume --output-dir ./runs
 ```
 
+### Deep crawl (follow links from fetched pages)
+
+```bash
+financial-scraper --queries-file queries.txt --search-type news --crawl --crawl-depth 1 --max-pages-per-domain 5 --output-dir ./runs
+```
+
+### Deep crawl with stealth (production)
+
+```bash
+financial-scraper --queries-file queries.txt --search-type news --crawl --crawl-depth 2 --max-pages-per-domain 10 --stealth --resume --output-dir ./runs --exclude-file config/exclude_domains.txt
+```
+
 ### JSONL output alongside Parquet
 
 ```bash
@@ -188,6 +201,10 @@ config = ScraperConfig(
     date_from="2025-01-01",
     date_to="2025-12-31",
     resume=True,
+    # Deep crawl: follow links from fetched pages
+    crawl=True,
+    crawl_depth=1,
+    max_pages_per_domain=5,
 )
 
 pipeline = ScraperPipeline(config)
@@ -224,6 +241,9 @@ See [`docs/examples/`](docs/examples/) for more Python examples.
 | `--timeout SECS` | `20` | Fetch timeout |
 | `--stealth` | off | Low-profile mode (concurrency 4, delays 5-8s) |
 | `--no-robots` | off | Skip robots.txt checking |
+| `--crawl` | off | Follow links from fetched pages (BFS) |
+| `--crawl-depth N` | `2` | Max link-following depth |
+| `--max-pages-per-domain N` | `50` | Cap pages fetched per domain during crawl |
 | `--min-words N` | `100` | Minimum word count to keep |
 | `--target-language LANG` | - | ISO language filter (e.g. `en`) |
 | `--no-favor-precision` | off | Disable trafilatura precision mode |
@@ -240,6 +260,7 @@ See [`docs/examples/`](docs/examples/) for more Python examples.
 - **Use `--search-type news`** for financial content, less rate-limited and more relevant than text search
 - **Expect 30-50% fetch failures**, many financial sites block automated access (Cloudflare, paywalls). This is normal; the pipeline logs and continues
 - **Niche queries returning 0 results?** Simplify your phrasing (e.g., `grain market` instead of `oats commodity analysis`)
+- **Deep crawl** (`--crawl`) follows same-domain links from fetched pages to discover related articles. Start with `--crawl-depth 1 --max-pages-per-domain 3` to test, then scale up
 - **Start small**, test with 5-10 queries before scaling to hundreds
 - **Windows users:** If `financial-scraper` gives "Access is denied", use `python -m financial_scraper` instead
 - **Tor users:** Start Tor Browser (port 9150) or the Tor daemon (port 9050) *before* running with `--use-tor`

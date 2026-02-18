@@ -60,6 +60,7 @@ graph TB
         pdf["<b>pdf.py</b>\npdfplumber\ntext extraction"]
         clean["<b>clean.py</b>\n10 regex patterns\nboilerplate removal"]
         date_filter["<b>date_filter.py</b>\nYYYY-MM-DD range\npost-extraction filter"]
+        links["<b>links.py</b>\nBFS link extraction\nsame-domain filter"]
     end
 
     subgraph Store_mod["&nbsp; 💾 store/ &nbsp;"]
@@ -76,6 +77,7 @@ graph TB
     pipeline --> pdf
     pipeline --> clean
     pipeline --> date_filter
+    pipeline --> links
     pipeline --> dedup
     pipeline --> output
     pipeline --> checkpoint
@@ -95,7 +97,7 @@ graph TB
     class config,pipeline,checkpoint coreStyle
     class ddg searchStyle
     class client,fingerprints,throttle,robots,tor fetchStyle
-    class html,pdf,clean,date_filter extractStyle
+    class html,pdf,clean,date_filter,links extractStyle
     class dedup,output storeStyle
 
     style CLI fill:#f8f9fa,stroke:#6c757d,stroke-width:2px,stroke-dasharray: 0

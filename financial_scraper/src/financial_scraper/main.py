@@ -82,6 +82,9 @@ def build_config(args) -> ScraperConfig:
         fetch_timeout=args.timeout,
         stealth=args.stealth,
         respect_robots=not args.no_robots,
+        crawl=args.crawl,
+        crawl_depth=args.crawl_depth,
+        max_pages_per_domain=args.max_pages_per_domain,
         min_word_count=args.min_words,
         target_language=args.target_language,
         favor_precision=not args.no_favor_precision,
@@ -127,6 +130,11 @@ def main():
     p.add_argument("--timeout", type=int, default=20)
     p.add_argument("--stealth", action="store_true")
     p.add_argument("--no-robots", action="store_true")
+
+    # Crawl
+    p.add_argument("--crawl", action="store_true", help="Follow links from fetched pages (BFS)")
+    p.add_argument("--crawl-depth", type=int, default=2, help="Max link-following depth (default: 2)")
+    p.add_argument("--max-pages-per-domain", type=int, default=50, help="Cap pages fetched per domain")
 
     # Extract
     p.add_argument("--min-words", type=int, default=100)

@@ -138,6 +138,44 @@ financial-scraper --queries-file config/commodities_300.txt --search-type news -
 
 ---
 
+## Deep Crawl
+
+Deep crawl follows same-domain links from fetched pages to discover additional content beyond the initial search results. Useful for finding related articles, "more on this topic" links, and deeper site content.
+
+### Quick crawl test (depth 1, small cap)
+
+```bash
+financial-scraper --queries-file config/test_commodities3.txt --search-type news --crawl --crawl-depth 1 --max-results 3 --max-pages-per-domain 3 --output-dir ./runs
+```
+
+### News crawl (depth 1, moderate)
+
+```bash
+financial-scraper --queries-file config/queries_example.txt --search-type news --crawl --crawl-depth 1 --max-pages-per-domain 5 --output-dir ./runs --exclude-file config/exclude_domains.txt --jsonl
+```
+
+### Deep crawl (depth 2, production)
+
+```bash
+financial-scraper --queries-file config/commodities_50.txt --search-type news --crawl --crawl-depth 2 --max-pages-per-domain 10 --stealth --resume --output-dir ./runs --exclude-file config/exclude_domains.txt --jsonl
+```
+
+### Text search + crawl (research papers, reports)
+
+```bash
+financial-scraper --queries-file docs/examples/queries_financial.txt --search-type text --crawl --crawl-depth 1 --max-pages-per-domain 5 --output-dir ./runs --exclude-file config/exclude_domains.txt
+```
+
+### Crawl with Markdown export
+
+```bash
+financial-scraper --queries-file config/test_commodities3.txt --search-type news --crawl --crawl-depth 1 --max-pages-per-domain 5 --output-dir ./runs --markdown --jsonl
+```
+
+> **Tip:** Start with `--crawl-depth 1 --max-pages-per-domain 3` for testing. News sites can have hundreds of links per page, so keeping the cap low prevents long waits. Scale up once you've verified the results.
+
+---
+
 ## Resume & Recovery
 
 ### Resume an interrupted run

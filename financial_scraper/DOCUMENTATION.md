@@ -69,7 +69,8 @@ financial_scraper/
 │   │   ├── html.py                    # trafilatura two-pass extraction
 │   │   ├── pdf.py                     # pdfplumber extraction
 │   │   ├── clean.py                   # Boilerplate removal (cookies, ads, etc.)
-│   │   └── date_filter.py             # Post-extraction date range filtering
+│   │   ├── date_filter.py             # Post-extraction date range filtering
+│   │   └── links.py                   # BFS link extraction + same-domain filtering
 │   └── store/
 │       ├── __init__.py
 │       ├── dedup.py                   # URL + content SHA256 deduplication
@@ -426,7 +427,18 @@ Each profile includes: User-Agent, Accept, Accept-Language, Accept-Encoding, Sec
 
 **Additional**: Unicode NFKC normalization, whitespace collapse, per-line stripping.
 
-### 6.10 `extract/date_filter.py` - DateFilter
+### 6.10 `extract/links.py` - Link Extraction
+
+**Purpose**: Extract and filter links from HTML pages for BFS deep crawling.
+
+**Functions**:
+- `extract_links(html, base_url)` - Parse HTML with BeautifulSoup/lxml, extract `<a href>` links, resolve relative URLs, strip fragments, skip `javascript:`/`mailto:`/asset extensions, deduplicate
+- `filter_links_same_domain(links, source_domain, exclusions, seen_urls, domain_page_counts, max_pages_per_domain)` - Filter to same base domain, check exclusions, seen URLs, per-domain cap
+- `_base_domain(hostname)` - Extract base domain (e.g., `blog.reuters.com` -> `reuters.com`)
+
+**Asset extensions skipped**: `.jpg`, `.jpeg`, `.png`, `.gif`, `.svg`, `.ico`, `.webp`, `.bmp`, `.css`, `.js`, `.woff`, `.woff2`, `.ttf`, `.eot`, `.mp3`, `.mp4`, `.avi`, `.mov`, `.wmv`, `.flv`, `.zip`, `.gz`, `.tar`, `.rar`, `.7z`, `.exe`, `.dmg`, `.msi`
+
+### 6.11 `extract/date_filter.py` - DateFilter
 
 **Purpose**: Post-extraction filtering by publication date range.
 
@@ -477,14 +489,14 @@ Each profile includes: User-Agent, Accept, Accept-Language, Accept-Encoding, Sec
 **Flow per query**:
 1. Load exclusions + checkpoint + dedup state
 2. DDG search -> filter exclusions -> filter already-seen URLs
-3. Async fetch batch with throttling + fingerprints + robots
-4. Extract (HTML via trafilatura or PDF via pdfplumber)
-5. Post-clean (boilerplate removal)
-6. Date filter (if active)
-7. Content dedup
-8. Write to Parquet + JSONL
-9. Checkpoint save (atomic)
-10. Print summary
+3. BFS crawl loop (depth 0 = search results, depth 1+ = crawled links):
+   a. Async fetch batch with throttling + fingerprints + robots
+   b. Extract (HTML via trafilatura or PDF via pdfplumber)
+   c. If `crawl=True` and `depth < crawl_depth`: extract same-domain links for next depth
+   d. Post-clean, date filter, content dedup
+4. Write all records to Parquet + JSONL + Markdown
+5. Checkpoint save (atomic)
+6. Print summary
 
 ### 6.15 `config.py` - ScraperConfig
 
@@ -540,9 +552,9 @@ Delegates to `main.main()`. Required because the package uses a `src/` layout,wi
 | fetch_timeout | int | 20 | --timeout | Fetch timeout (s) |
 | stealth | bool | False | --stealth | Stealth overrides |
 | respect_robots | bool | True | --no-robots | robots.txt check |
-| crawl | bool | False | (not exposed) | Crawl mode |
-| crawl_depth | int | 2 | (not exposed) | Max crawl depth |
-| max_pages_per_domain | int | 50 | (not exposed) | Crawl page limit |
+| crawl | bool | False | --crawl | Follow links from fetched pages (BFS) |
+| crawl_depth | int | 2 | --crawl-depth | Max BFS link-following depth |
+| max_pages_per_domain | int | 50 | --max-pages-per-domain | Cap pages fetched per domain during crawl |
 | min_word_count | int | 100 | --min-words | Min words to keep |
 | target_language | str/None | None | --target-language | Language filter |
 | include_tables | bool | True | (internal) | Extract tables |
