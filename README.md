@@ -157,7 +157,7 @@ Federal Reserve interest rate decision
 treasury yield curve inversion signal
 ```
 
-See [`docs/examples/`](docs/examples/) for ready-to-use query files.
+See [`docs/examples/`](docs/examples/) for ready-to-use query files, or jump to the **[CLI Cookbook](docs/cli-examples.md)** for copy-paste commands.
 
 ---
 
@@ -307,6 +307,7 @@ The pipeline is modular, each stage is an independent module under `src/financia
 
 ## Documentation
 
+- **[CLI Cookbook](docs/cli-examples.md)**, copy-paste CLI commands for every query file and use case
 - **[User Guide](docs/user-guide.md)**, detailed installation, configuration reference, scaling guide, and troubleshooting
 - **[Architecture](docs/architecture.md)**, module map, data flow, and design rationale
 - **[Ethical Scraping](docs/ethical-scraping.md)**, rate limiting strategy, robots.txt, best practices

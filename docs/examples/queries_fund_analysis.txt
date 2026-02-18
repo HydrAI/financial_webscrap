@@ -1,0 +1,127 @@
+# Fund Analysis Queries
+# One query per line, # for comments
+
+# --- MUTUAL FUNDS ---
+
+# Performance & Rankings
+top performing mutual funds ranking
+mutual fund performance vs benchmark
+active fund alpha generation track record
+mutual fund risk adjusted return Sharpe ratio
+fund quartile ranking persistence analysis
+
+# Flows & Sentiment
+mutual fund flow data weekly
+equity fund inflows outflows trend
+bond fund redemption risk analysis
+money market fund assets under management
+fund flow momentum indicator signal
+
+# Fund Selection
+mutual fund expense ratio comparison
+fund manager tenure track record
+mutual fund turnover ratio tax efficiency
+concentrated vs diversified fund strategy
+fund size AUM performance impact
+
+# --- ETFs ---
+
+# ETF Market
+ETF assets under management growth
+ETF creation redemption mechanism
+new ETF launches thematic trends
+ETF liquidity bid ask spread analysis
+active ETF market share growth
+
+# ETF Strategy
+factor ETF smart beta performance
+thematic ETF AI technology exposure
+dividend ETF yield comparison
+low volatility ETF defensive strategy
+buffer ETF defined outcome structure
+leveraged inverse ETF performance decay
+
+# Fixed Income ETFs
+bond ETF vs individual bonds comparison
+high yield bond ETF liquidity premium
+treasury ETF duration positioning
+TIPS ETF inflation protection
+municipal bond ETF tax equivalent yield
+
+# --- HEDGE FUNDS ---
+
+# Strategy Performance
+hedge fund performance index returns
+long short equity hedge fund alpha
+global macro fund performance
+event driven merger arbitrage returns
+quantitative systematic fund performance
+multi strategy hedge fund allocation
+
+# Industry Trends
+hedge fund assets under management growth
+hedge fund fee structure two and twenty
+hedge fund investor redemption trends
+fund of hedge funds vs direct allocation
+emerging manager hedge fund performance
+
+# Positions & Activity
+hedge fund 13F filing top holdings
+activist hedge fund campaign outcomes
+hedge fund short selling activity
+concentrated position risk hedge funds
+hedge fund crowded trade analysis
+
+# --- PRIVATE EQUITY & ALTERNATIVES ---
+
+# Private Equity
+private equity fund performance IRR
+PE fund vintage year returns comparison
+private equity dry powder deployment
+buyout fund vs growth equity returns
+PE exit multiples IPO vs trade sale
+private equity secondaries market pricing
+
+# Venture Capital
+venture capital fund performance
+VC deal volume seed series A funding
+venture capital valuation markdowns
+late stage venture funding trends
+VC fund vintage year performance
+
+# Real Assets
+real estate fund ODCE index returns
+infrastructure fund performance benchmark
+natural resources fund commodity exposure
+timberland farmland fund returns
+real assets inflation hedge performance
+
+# Private Credit & Alternatives
+private credit fund returns spread
+direct lending fund default rates
+mezzanine fund performance analysis
+distressed debt fund opportunity set
+insurance linked securities cat bond returns
+
+# --- FUND OPERATIONS & GOVERNANCE ---
+
+# Fund Governance
+fund board independence oversight
+proxy voting fund manager policies
+fund compliance SEC examination trends
+side pocket illiquid asset valuation
+fund NAV calculation methodology
+
+# Due Diligence
+fund operational due diligence checklist
+fund administrator custodian selection
+fund audit financial statement review
+fund counterparty risk assessment
+fund cybersecurity operational resilience
+
+# ESG Integration
+ESG fund performance vs conventional
+sustainable fund flow growth trends
+impact investing fund measurement
+green bond fund climate alignment
+ESG rating fund holdings analysis

@@ -776,6 +776,7 @@ This tells trafilatura to prefer content in that language. Note: DuckDuckGo resu
 
 ## Next Steps
 
+- See the **[CLI Cookbook](cli-examples.md)** for copy-paste commands covering every query file and use case
 - Browse [example query files](examples/) for ready-to-use queries
 - Read [ethical-scraping.md](ethical-scraping.md) to understand the rate-limiting strategy
 - Read [architecture.md](architecture.md) for the module map and design rationale

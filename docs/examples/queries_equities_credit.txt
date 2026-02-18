@@ -1,0 +1,92 @@
+# Equities & Credit Research Queries
+# One query per line, # for comments
+
+# --- EQUITIES ---
+
+# Earnings & Valuation
+S&P 500 earnings growth forecast
+corporate earnings revision trends
+forward PE ratio valuation S&P 500
+price to book ratio value stocks
+free cash flow yield equity screening
+EPS estimate revision breadth indicator
+
+# Sector Analysis
+technology sector earnings outlook
+healthcare sector pharma pipeline valuation
+financial sector bank earnings net interest margin
+energy sector upstream E&P capex cycle
+consumer discretionary spending trends
+industrial sector PMI manufacturing outlook
+real estate REITs cap rate trends
+utilities sector regulated returns outlook
+communication services ad revenue growth
+
+# Equity Strategy
+equity risk premium estimate
+small cap vs large cap performance
+growth vs value rotation signal
+momentum factor performance attribution
+dividend growth stock screening criteria
+stock buyback corporate repurchase trends
+equity market breadth advance decline
+insider buying selling signal analysis
+short interest ratio most shorted stocks
+
+# IPO & Primary Markets
+IPO market pipeline upcoming listings
+SPAC deal volume redemption rates
+secondary offering dilution impact
+direct listing vs IPO comparison
+pre-IPO private valuation multiples
+
+# Regional Equities
+European equities Stoxx 600 outlook
+emerging markets equity valuation discount
+Japan Nikkei corporate governance reform
+China A-shares MSCI inclusion impact
+India Nifty 50 earnings growth
+
+# --- CREDIT ---
+
+# Investment Grade
+investment grade corporate bond spreads
+IG credit spread forecast tightening
+corporate bond issuance volume trends
+BBB rated downgrade risk fallen angel
+credit rating migration transition matrix
+
+# High Yield
+high yield bond spread outlook
+leveraged loan default rate forecast
+CCC rated distressed debt analysis
+high yield energy sector spreads
+covenant lite loan risk assessment
+
+# Credit Strategy
+credit default swap CDS spreads
+corporate debt maturity wall refinancing
+interest coverage ratio corporate stress
+net leverage ratio sector comparison
+credit cycle late cycle indicators
+
+# Structured Credit
+CLO collateralized loan obligation market
+ABS auto loan delinquency rates
+CMBS commercial mortgage delinquency
+MBS mortgage backed securities prepayment
+private credit direct lending returns
+
+# Sovereign & EM Credit
+US treasury auction demand metrics
+sovereign credit rating outlook changes
+emerging market hard currency bond spreads
+frontier market debt sustainability
+China property developer bond default
+
+# Credit Events & Distressed
+corporate bankruptcy filing trends
+distressed debt exchange offers
+leveraged buyout LBO financing terms
+covenant breach waiver amendment trends
+recovery rate senior unsecured bonds
