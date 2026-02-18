@@ -1,6 +1,9 @@
 """Tests for the MCP server tools (all external dependencies mocked)."""
 
 import pytest
+
+pytest.importorskip("mcp", reason="mcp package not installed (optional dependency)")
+
 from collections import OrderedDict
 from unittest.mock import AsyncMock, MagicMock, patch
 
