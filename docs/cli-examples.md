@@ -68,12 +68,6 @@ financial-scraper --queries-file docs/examples/queries_equities_credit.txt --sea
 financial-scraper --queries-file docs/examples/queries_fund_analysis.txt --search-type news --max-results 15 --output-dir ./runs --exclude-file config/exclude_domains.txt --stealth --resume --jsonl
 ```
 
-### China companies (90 queries)
-
-```bash
-financial-scraper --queries-file docs/examples/queries_china_companies.txt --search-type news --max-results 15 --output-dir ./runs --exclude-file config/exclude_domains.txt --stealth --resume --jsonl
-```
-
 ---
 
 ## By Use Case
@@ -194,4 +188,3 @@ python -c "import pandas as pd, glob; f=sorted(glob.glob('runs/**/*.parquet',rec
 | [`docs/examples/queries_esg.txt`](examples/queries_esg.txt) | 20 | ESG & sustainability |
 | [`docs/examples/queries_equities_credit.txt`](examples/queries_equities_credit.txt) | 65 | Equities & credit |
 | [`docs/examples/queries_fund_analysis.txt`](examples/queries_fund_analysis.txt) | 75 | Funds, ETFs, PE/VC |
-| [`docs/examples/queries_china_companies.txt`](examples/queries_china_companies.txt) | 90 | China top companies |
