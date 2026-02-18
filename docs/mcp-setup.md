@@ -18,7 +18,7 @@ This MCP server runs **entirely on your machine at zero marginal cost**:
 | Per-session scaling | 10 queries x 50 articles = significant token bill | Same workload, $0 for search/fetch/extract |
 | Response size control | Provider decides what to inject | You return compact structured JSON, minimizing token usage |
 
-The tradeoff is search quality: DDG's index is smaller than Google/Bing, and it rate-limits aggressively under heavy use. For occasional lookups, built-in search is more convenient. For **research workflows** — multiple queries, dozens of articles, iterative exploration — the cost savings add up fast, and you get capabilities built-in search lacks: PDF extraction, content deduplication, batch fetching with per-domain throttling, and direct access to your previous CLI scrape runs.
+The tradeoff is search quality: DDG's index is smaller than Google/Bing, and it rate-limits aggressively under heavy use. For occasional lookups, built-in search is more convenient. For **research workflows** - multiple queries, dozens of articles, iterative exploration - the cost savings add up fast, and you get capabilities built-in search lacks: PDF extraction, content deduplication, batch fetching with per-domain throttling, and direct access to your previous CLI scrape runs.
 
 ---
 
@@ -41,7 +41,7 @@ financial-scraper-mcp --help
 python -m financial_scraper.mcp
 ```
 
-The server starts on stdio and waits for MCP messages — you won't see output in the terminal (that's normal). Press `Ctrl+C` to stop.
+The server starts on stdio and waits for MCP messages - you won't see output in the terminal (that's normal). Press `Ctrl+C` to stop.
 
 ---
 
@@ -167,9 +167,9 @@ The LLM will call `scrape` with `search_type="news"`, get full article texts, an
 
 ### Step-by-step (more control)
 
-1. `search` — find URLs
-2. `fetch` — download pages (LLM can inspect status codes, filter)
-3. `extract` — pull clean text from successful fetches
+1. `search` - find URLs
+2. `fetch` - download pages (LLM can inspect status codes, filter)
+3. `extract` - pull clean text from successful fetches
 
 ### Analyze past runs
 
@@ -182,6 +182,6 @@ The LLM calls `read_output` and processes the data.
 ## Notes
 
 - The MCP server is a long-lived stdio process. Fetch results are cached in memory (up to 500 URLs, LRU eviction) so that `extract` can access them without re-fetching.
-- Content deduplication is active within a session — duplicate articles are filtered automatically.
+- Content deduplication is active within a session - duplicate articles are filtered automatically.
 - The existing CLI (`financial-scraper`) is completely unaffected. Both entry points use the same underlying classes.
 - Search calls are synchronous (DuckDuckGo client limitation) but wrapped in `asyncio.to_thread()` so the MCP event loop stays responsive.

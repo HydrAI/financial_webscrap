@@ -34,7 +34,7 @@ print(df[['company','source','title']].head())
 
 ## By Query File
 
-### Commodities — starter (10 queries)
+### Commodities - starter (10 queries)
 
 ```bash
 financial-scraper \
@@ -46,7 +46,7 @@ financial-scraper \
   --jsonl
 ```
 
-### Commodities — validated (50 queries)
+### Commodities - validated (50 queries)
 
 ```bash
 financial-scraper \
@@ -60,7 +60,7 @@ financial-scraper \
   --jsonl
 ```
 
-### Commodities — comprehensive (300 queries)
+### Commodities - comprehensive (300 queries)
 
 ```bash
 financial-scraper \

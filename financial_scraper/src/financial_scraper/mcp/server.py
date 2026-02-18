@@ -38,7 +38,7 @@ _CACHE_MAX = 500
 
 mcp = FastMCP(
     "financial-scraper",
-    instructions="Ethical financial web scraper — search, fetch, extract articles",
+    instructions="Ethical financial web scraper - search, fetch, extract articles",
 )
 
 
@@ -114,7 +114,7 @@ async def fetch(
     """Fetch URLs with ethical rate limiting, fingerprints, and robots.txt compliance.
 
     Results are cached in memory so `extract` can process them without re-fetching.
-    Does NOT return raw HTML (too large) — call `extract` to get clean text.
+    Does NOT return raw HTML (too large) - call `extract` to get clean text.
     """
     cfg = _build_config(fetch_timeout=timeout, respect_robots=respect_robots)
     throttler = DomainThrottler(max_per_domain=cfg.max_concurrent_per_domain)
@@ -148,7 +148,7 @@ async def extract(
 ) -> list[dict]:
     """Extract clean text from previously fetched content.
 
-    You must call `fetch` first — this tool looks up cached fetch results by URL.
+    You must call `fetch` first - this tool looks up cached fetch results by URL.
     Returns title, author, date, full text, word count, and extraction method.
     """
     cfg = _build_config(min_word_count=min_word_count)
@@ -159,7 +159,7 @@ async def extract(
     for url in urls:
         fr = _fetch_cache.get(url)
         if fr is None:
-            results.append({"url": url, "error": "URL not in fetch cache — call fetch first"})
+            results.append({"url": url, "error": "URL not in fetch cache - call fetch first"})
             continue
         if fr.error:
             results.append({"url": url, "error": f"Fetch failed: {fr.error}"})

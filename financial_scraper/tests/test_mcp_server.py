@@ -214,7 +214,7 @@ class TestExtractTool:
     @pytest.mark.asyncio
     async def test_extract_not_in_cache(self):
         results = await mcp_server.extract(urls=["https://not-fetched.com"])
-        assert results[0]["error"] == "URL not in fetch cache — call fetch first"
+        assert results[0]["error"] == "URL not in fetch cache - call fetch first"
 
     @pytest.mark.asyncio
     async def test_extract_fetch_error(self):
@@ -274,9 +274,9 @@ class TestExtractTool:
 
         with patch.object(mcp_server, "HTMLExtractor") as MockExtractor:
             MockExtractor.return_value.extract.return_value = sample_extraction
-            # Extract first — succeeds
+            # Extract first - succeeds
             results1 = await mcp_server.extract(urls=[fr1.url])
-            # Extract second with identical content — deduplicated
+            # Extract second with identical content - deduplicated
             results2 = await mcp_server.extract(urls=[fr2.url])
 
         assert results1[0]["error"] is None
@@ -300,7 +300,7 @@ class TestScrapeTool:
             # search
             MockSearcher.return_value.search.return_value = sample_search_results
 
-            # fetch — return results for both URLs
+            # fetch - return results for both URLs
             fr1 = sample_fetch_result
             fr2 = FetchResult(
                 url="https://example.com/2", status=200,
@@ -313,7 +313,7 @@ class TestScrapeTool:
             mock_client.__aexit__ = AsyncMock(return_value=False)
             MockFetchClient.return_value = mock_client
 
-            # extract — different content so dedup doesn't filter
+            # extract - different content so dedup doesn't filter
             ex1 = sample_extraction
             ex2 = ExtractionResult(
                 text="Different financial content " * 30,
