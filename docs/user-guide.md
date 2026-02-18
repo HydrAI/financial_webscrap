@@ -305,11 +305,7 @@ The quality of your output depends heavily on your queries. financial-scraper pa
 Use `--date-from` and `--date-to` to keep only pages whose detected publication date falls within a range:
 
 ```bash
-financial-scraper \
-  --queries-file queries.txt \
-  --search-type news \
-  --date-from 2025-01-01 \
-  --date-to 2025-06-30
+financial-scraper --queries-file queries.txt --search-type news --date-from 2025-01-01 --date-to 2025-06-30
 ```
 
 Note: This filters *after* extraction based on the date trafilatura detects in the HTML. Not all pages have detectable dates,those without dates are kept by default.
@@ -440,11 +436,7 @@ financial-scraper --queries-file queries.txt --search-type news --output-dir ./r
 Add `--resume` so you can restart if interrupted:
 
 ```bash
-financial-scraper \
-  --queries-file queries.txt \
-  --search-type news \
-  --resume \
-  --output-dir ./runs
+financial-scraper --queries-file queries.txt --search-type news --resume --output-dir ./runs
 ```
 
 ### Large runs (100-300+ queries)
@@ -452,15 +444,7 @@ financial-scraper \
 Use stealth mode + Tor + resume for reliability:
 
 ```bash
-financial-scraper \
-  --queries-file queries.txt \
-  --search-type news \
-  --stealth \
-  --use-tor \
-  --resume \
-  --output-dir ./runs \
-  --exclude-file config/exclude_domains.txt \
-  --jsonl
+financial-scraper --queries-file queries.txt --search-type news --stealth --use-tor --resume --output-dir ./runs --exclude-file config/exclude_domains.txt --jsonl
 ```
 
 **Why stealth?** Large runs trigger DuckDuckGo rate limits. Stealth mode reduces concurrency (10→4) and increases delays (3-6s→5-8s) to stay under the radar.
@@ -528,17 +512,12 @@ flowchart TD
 
 ```bash
 # With Tor Browser running
-financial-scraper \
-  --queries-file queries.txt \
-  --use-tor \
-  --output-dir ./runs
+financial-scraper --queries-file queries.txt --use-tor --output-dir ./runs
+```
 
+```bash
 # With Tor daemon (different port)
-financial-scraper \
-  --queries-file queries.txt \
-  --use-tor \
-  --tor-socks-port 9050 \
-  --output-dir ./runs
+financial-scraper --queries-file queries.txt --use-tor --tor-socks-port 9050 --output-dir ./runs
 ```
 
 ### Circuit renewal
@@ -555,12 +534,7 @@ The scraper also auto-renews the circuit when it receives a 429 (rate limit) res
 ### Tor + Stealth (recommended for large runs)
 
 ```bash
-financial-scraper \
-  --queries-file queries.txt \
-  --use-tor \
-  --stealth \
-  --resume \
-  --output-dir ./runs
+financial-scraper --queries-file queries.txt --use-tor --stealth --resume --output-dir ./runs
 ```
 
 ---

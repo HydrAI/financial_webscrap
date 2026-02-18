@@ -91,50 +91,31 @@ financial-scraper --queries-file queries.txt --output-dir ./runs
 ### Date-filtered news scraping
 
 ```bash
-financial-scraper \
-  --queries-file queries.txt \
-  --search-type news \
-  --date-from 2025-01-01 \
-  --date-to 2025-12-31 \
-  --output-dir ./runs
+financial-scraper --queries-file queries.txt --search-type news --date-from 2025-01-01 --date-to 2025-12-31 --output-dir ./runs
 ```
 
 ### Tor-routed privacy mode
 
 ```bash
-financial-scraper \
-  --queries-file queries.txt \
-  --use-tor \
-  --tor-socks-port 9150 \
-  --output-dir ./runs
+financial-scraper --queries-file queries.txt --use-tor --tor-socks-port 9150 --output-dir ./runs
 ```
 
 ### Stealth mode for large runs
 
 ```bash
-financial-scraper \
-  --queries-file queries.txt \
-  --stealth \
-  --resume \
-  --output-dir ./runs
+financial-scraper --queries-file queries.txt --stealth --resume --output-dir ./runs
 ```
 
 ### Resume an interrupted job
 
 ```bash
-financial-scraper \
-  --queries-file queries.txt \
-  --resume \
-  --output-dir ./runs
+financial-scraper --queries-file queries.txt --resume --output-dir ./runs
 ```
 
 ### JSONL output alongside Parquet
 
 ```bash
-financial-scraper \
-  --queries-file queries.txt \
-  --output-dir ./runs \
-  --jsonl
+financial-scraper --queries-file queries.txt --output-dir ./runs --jsonl
 ```
 
 ---
