@@ -80,6 +80,7 @@ docs/RECAP.md
 # China-related query lists (private/internal)
 *china*
 *China*
+!financial_scraper/config/tchina_clean.txt
 
 # Scraper run outputs (large, generated)
 financial_scraper/runs/
