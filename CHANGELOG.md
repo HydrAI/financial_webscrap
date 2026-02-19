@@ -18,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - Updated all documentation (README, User Guide, CLI Cookbook, DOCUMENTATION, Architecture) with reset flag references and examples
+- Test suite expanded from 265 to 274 tests (9 new tests for reset features)
 
 ## [0.2.0] - 2026-02-18
 
