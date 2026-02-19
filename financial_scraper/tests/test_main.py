@@ -132,3 +132,15 @@ class TestBuildConfig:
         assert cfg.crawl is True
         assert cfg.crawl_depth == 3
         assert cfg.max_pages_per_domain == 25
+
+    def test_reset_queries_flag(self, tmp_path):
+        out_file = str(tmp_path / "out.parquet")
+        args = _make_args(output=out_file, reset_queries=True)
+        cfg = build_config(args)
+        assert cfg.reset_queries is True
+
+    def test_reset_queries_default_false(self, tmp_path):
+        out_file = str(tmp_path / "out.parquet")
+        args = _make_args(output=out_file)
+        cfg = build_config(args)
+        assert cfg.reset_queries is False

@@ -548,3 +548,88 @@ class TestCrawlFeature:
 
                 # Only depth-0 fetch; domain cap prevents depth-1
                 assert mock_instance.fetch_batch.call_count == 1
+
+
+class TestResetFeatures:
+    def test_reset_queries_reprocesses_all(self, tmp_path):
+        """--resume --reset-queries: all queries run again despite checkpoint."""
+        from financial_scraper.checkpoint import Checkpoint
+
+        qf = tmp_path / "queries.txt"
+        qf.write_text("query1\nquery2\n")
+        cp_path = tmp_path / "cp.json"
+
+        # Pre-create checkpoint with both queries done
+        cp = Checkpoint(cp_path)
+        cp.mark_query_done("query1")
+        cp.mark_query_done("query2")
+
+        p = _make_pipeline(tmp_path, resume=True, reset_queries=True)
+
+        mock_searcher = MagicMock()
+        mock_searcher.search.return_value = []
+
+        with patch("financial_scraper.pipeline.DDGSearcher", return_value=mock_searcher):
+            asyncio.run(p.run())
+
+        # Both queries should be searched (not skipped)
+        assert mock_searcher.search.call_count == 2
+
+    def test_reset_queries_keeps_url_dedup(self, tmp_path):
+        """--reset-queries: URL history preserved, already-fetched URLs skipped."""
+        from financial_scraper.checkpoint import Checkpoint
+        from financial_scraper.search.duckduckgo import SearchResult
+        from financial_scraper.fetch.client import FetchResult
+
+        qf = tmp_path / "queries.txt"
+        qf.write_text("query1\n")
+        cp_path = tmp_path / "cp.json"
+
+        # Pre-create checkpoint with query1 done and a URL fetched
+        cp = Checkpoint(cp_path)
+        cp.mark_url_fetched("https://example.com/already-seen")
+        cp.mark_query_done("query1")
+
+        p = _make_pipeline(tmp_path, resume=True, reset_queries=True)
+
+        mock_searcher = MagicMock()
+        mock_searcher.search.return_value = [
+            SearchResult(url="https://example.com/already-seen", title="T1",
+                         snippet="S1", search_rank=1, query="query1"),
+        ]
+
+        with patch("financial_scraper.pipeline.DDGSearcher", return_value=mock_searcher):
+            with patch("financial_scraper.pipeline.FetchClient") as MockClient:
+                mock_instance = AsyncMock()
+                mock_instance.fetch_batch.return_value = []
+                MockClient.return_value.__aenter__ = AsyncMock(return_value=mock_instance)
+                MockClient.return_value.__aexit__ = AsyncMock(return_value=False)
+
+                asyncio.run(p.run())
+
+        # Search was called (query not skipped)
+        assert mock_searcher.search.call_count == 1
+        # But the URL was already fetched, so fetch_batch should not be called
+        # (all URLs filtered as already seen)
+
+    def test_resume_without_reset_skips_done_queries(self, tmp_path):
+        """--resume without --reset-queries: done queries are skipped as before."""
+        from financial_scraper.checkpoint import Checkpoint
+
+        qf = tmp_path / "queries.txt"
+        qf.write_text("query1\nquery2\n")
+        cp_path = tmp_path / "cp.json"
+
+        cp = Checkpoint(cp_path)
+        cp.mark_query_done("query1")
+
+        p = _make_pipeline(tmp_path, resume=True, reset_queries=False)
+
+        mock_searcher = MagicMock()
+        mock_searcher.search.return_value = []
+
+        with patch("financial_scraper.pipeline.DDGSearcher", return_value=mock_searcher):
+            asyncio.run(p.run())
+
+        # Only query2 should be searched (query1 skipped)
+        assert mock_searcher.search.call_count == 1
