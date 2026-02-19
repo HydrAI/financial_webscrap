@@ -80,7 +80,12 @@ class ScraperPipeline:
         self._exclusions = self._load_exclusions()
         if self._config.resume:
             self._checkpoint.load()
-            logger.info(f"Resumed: {len(self._checkpoint.completed_queries)} queries done")
+            if self._config.reset_queries:
+                prev = len(self._checkpoint.completed_queries)
+                self._checkpoint.reset_queries()
+                logger.info(f"Reset {prev} completed queries (URL history kept)")
+            else:
+                logger.info(f"Resumed: {len(self._checkpoint.completed_queries)} queries done")
 
         # 5. Load queries
         queries = self._load_queries()

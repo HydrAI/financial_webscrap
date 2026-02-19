@@ -56,6 +56,7 @@ class ScraperConfig:
     # Checkpoint
     checkpoint_file: Path = Path(".scraper_checkpoint.json")
     resume: bool = False
+    reset_queries: bool = False
 
 
 def apply_stealth(config: ScraperConfig) -> ScraperConfig:

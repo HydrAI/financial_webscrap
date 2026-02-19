@@ -97,6 +97,7 @@ def build_config(args) -> ScraperConfig:
         exclude_file=Path(args.exclude_file) if args.exclude_file else None,
         checkpoint_file=Path(args.checkpoint),
         resume=args.resume,
+        reset_queries=args.reset_queries,
     )
 
 
@@ -149,8 +150,19 @@ def main():
     p.add_argument("--exclude-file", default=None)
     p.add_argument("--checkpoint", default=".scraper_checkpoint.json")
     p.add_argument("--resume", action="store_true")
+    p.add_argument("--reset", action="store_true", help="Delete checkpoint before running (fresh start)")
+    p.add_argument("--reset-queries", action="store_true",
+                   help="Clear completed queries from checkpoint but keep URL history")
 
     args = p.parse_args()
+
+    # Handle --reset: delete checkpoint file before building config
+    if args.reset:
+        cp = Path(args.checkpoint)
+        if cp.exists():
+            cp.unlink()
+            logging.getLogger(__name__).info(f"Checkpoint reset: deleted {cp}")
+
     config = build_config(args)
 
     start = time.time()

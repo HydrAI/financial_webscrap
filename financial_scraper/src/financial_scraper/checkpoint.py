@@ -43,6 +43,18 @@ class Checkpoint:
         self.failed_urls = data.get("failed_urls", {})
         self.stats = data.get("stats", self.stats)
 
+    def reset_queries(self):
+        """Clear completed queries and stats but keep URL history."""
+        self.completed_queries.clear()
+        self.stats = {
+            "total_queries": 0,
+            "total_pages": 0,
+            "total_words": 0,
+            "failed_fetches": 0,
+            "failed_extractions": 0,
+        }
+        self.save()
+
     def is_query_done(self, query: str) -> bool:
         return query in self.completed_queries
 

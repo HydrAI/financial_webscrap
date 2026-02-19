@@ -38,6 +38,7 @@ def _make_args(**overrides):
         "exclude_file": None,
         "checkpoint": ".scraper_checkpoint.json",
         "resume": False,
+        "reset_queries": False,
         "crawl": False,
         "crawl_depth": 2,
         "max_pages_per_domain": 50,
