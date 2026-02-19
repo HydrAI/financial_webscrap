@@ -243,6 +243,8 @@ EXTRACT:
 RESUME:
   --checkpoint FILE         Checkpoint file path (default: .scraper_checkpoint.json)
   --resume                  Resume from last checkpoint
+  --reset                   Delete checkpoint before running (fresh start)
+  --reset-queries           Clear completed queries but keep URL history
   --exclude-file FILE       Domain exclusion list
 ```
 
@@ -482,6 +484,10 @@ Each profile includes: User-Agent, Accept, Accept-Language, Accept-Encoding, Sec
 
 **Atomic saves**: Write to `.tmp` then `os.replace()` to prevent corruption.
 
+**Reset modes**:
+- `--reset`: Deletes the checkpoint file entirely before running (full fresh start)
+- `--reset-queries`: Clears completed queries and stats but keeps fetched/failed URL history. Re-runs all queries while avoiding re-fetching the same URLs. Requires `--resume` to load the checkpoint first.
+
 ### 6.14 `pipeline.py` - ScraperPipeline
 
 **Purpose**: Main orchestrator wiring all modules together.
@@ -567,6 +573,7 @@ Delegates to `main.main()`. Required because the package uses a `src/` layout,wi
 | exclude_file | Path/None | None | --exclude-file | Blocked domains file |
 | checkpoint_file | Path | .scraper_checkpoint.json | --checkpoint | Checkpoint file |
 | resume | bool | False | --resume | Resume from checkpoint |
+| reset_queries | bool | False | --reset-queries | Clear completed queries, keep URL history |
 
 ---
 

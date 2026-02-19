@@ -396,6 +396,7 @@ The `ScraperConfig` frozen dataclass holds all settings. Every CLI flag maps to 
 | `exclude_file` | `Path\|None` | `None` | `--exclude-file` | Domain exclusion list |
 | `checkpoint_file` | `Path` | `.scraper_checkpoint.json` | `--checkpoint` | Checkpoint file path |
 | `resume` | `bool` | `False` | `--resume` | Resume from last checkpoint |
+| `reset_queries` | `bool` | `False` | `--reset-queries` | Clear completed queries but keep URL history |
 
 #### Stealth mode overrides
 
@@ -620,6 +621,20 @@ config = ScraperConfig(
 )
 ```
 
+### Re-running queries from Python
+
+```python
+config = ScraperConfig(
+    queries_file=Path("queries.txt"),
+    search_type="news",
+    # Resume loads the checkpoint (URL history, stats)
+    resume=True,
+    # Reset queries clears completed queries but keeps URL dedup
+    reset_queries=True,
+    output_dir=Path("./runs"),
+)
+```
+
 ### Using Tor from Python
 
 ```python
@@ -740,6 +755,22 @@ financial-scraper --queries-file queries.txt --output-dir ./runs --resume
 
 The checkpoint file (`.scraper_checkpoint.json`) is saved in the current directory by default. Use `--checkpoint path/to/file.json` to customize.
 
+### How do I re-run the same queries?
+
+If all queries are marked "done" in the checkpoint, `--resume` will skip everything. Use one of these flags:
+
+```bash
+# Re-run all queries but skip already-fetched URLs (smart re-run)
+financial-scraper --queries-file queries.txt --resume --reset-queries --output-dir ./runs
+
+# Full reset — delete checkpoint entirely and start fresh
+financial-scraper --queries-file queries.txt --reset --output-dir ./runs
+```
+
+**When to use which:**
+- `--reset-queries`: Re-searches all queries but won't re-fetch URLs already in the checkpoint. Best for getting new search results while avoiding duplicate fetches.
+- `--reset`: Deletes the checkpoint file completely. Use when you want a fully clean slate.
+
 ### Can I use a proxy instead of Tor?
 
 Yes. Use `--proxy` with any HTTP or SOCKS5 proxy:
@@ -794,4 +825,5 @@ This tells trafilatura to prefer content in that language. Note: DuckDuckGo resu
 - Browse [example query files](examples/) for ready-to-use queries
 - Read [ethical-scraping.md](ethical-scraping.md) to understand the rate-limiting strategy
 - Read [architecture.md](architecture.md) for the module map and design rationale
+- Read [skills.md](skills.md) for a breakdown of engineering competencies demonstrated
 - See [CONTRIBUTING.md](../CONTRIBUTING.md) if you want to contribute

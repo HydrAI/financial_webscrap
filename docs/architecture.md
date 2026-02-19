@@ -187,8 +187,11 @@ flowchart TD
 
     CHECK -->|"No"| FRESH["Load all queries\nfrom file"]:::grey
     CHECK -->|"Yes"| LOAD["📂 Load checkpoint\nfrom JSON"]:::orange
-    LOAD --> SKIP["⏭️ Skip completed\nqueries"]:::orange
+    LOAD --> RESET{"--reset-queries\nflag set?"}:::decision
+    RESET -->|"No"| SKIP["⏭️ Skip completed\nqueries"]:::orange
+    RESET -->|"Yes"| CLEAR["🔄 Clear completed queries\nkeep URL history"]:::orange
     SKIP --> PROC["Queue remaining\nqueries"]:::grey
+    CLEAR --> PROC
     FRESH --> LOOP
     PROC --> LOOP
 

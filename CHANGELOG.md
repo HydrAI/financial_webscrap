@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.1] - 2026-02-19
+
+### Added
+
+- **`--reset` flag**: Deletes the checkpoint file before running for a full fresh start
+- **`--reset-queries` flag**: Clears completed queries from checkpoint but keeps URL history, allowing re-runs without re-fetching the same URLs
+- `reset_queries()` method on `Checkpoint` class
+- `reset_queries` field on `ScraperConfig` frozen dataclass
+- **[Technical Skills](docs/skills.md)** document: engineering competencies demonstrated by this project, organized across 8 domains (async programming, network engineering, data engineering, resilience, architecture, testing, devops, security)
+
+### Changed
+
+- Updated all documentation (README, User Guide, CLI Cookbook, DOCUMENTATION, Architecture) with reset flag references and examples
+
 ## [0.2.0] - 2026-02-18
 
 ### Added

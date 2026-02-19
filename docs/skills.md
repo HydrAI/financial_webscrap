@@ -111,3 +111,71 @@ A breakdown of the engineering competencies showcased in this project, organized
 | Browser profiles | 5 |
 | Output formats | 3 (Parquet, JSONL, Markdown) |
 | Dependencies | 13 core + 3 dev |
+
+---
+
+## Usage Examples
+
+### Basic news scrape
+
+```bash
+financial-scraper --queries-file queries.txt --search-type news --output-dir ./runs
+```
+
+### Production run with stealth + Tor + resume
+
+```bash
+financial-scraper --queries-file config/commodities_300.txt --search-type news --stealth --use-tor --resume --output-dir ./runs --exclude-file config/exclude_domains.txt --jsonl
+```
+
+### Re-run queries with fresh search results (keep URL dedup)
+
+```bash
+financial-scraper --queries-file queries.txt --resume --reset-queries --output-dir ./runs
+```
+
+### Deep crawl with depth-limited BFS
+
+```bash
+financial-scraper --queries-file queries.txt --search-type news --crawl --crawl-depth 2 --max-pages-per-domain 10 --output-dir ./runs
+```
+
+### Date-filtered extraction
+
+```bash
+financial-scraper --queries-file queries.txt --search-type news --date-from 2025-01-01 --date-to 2025-12-31 --output-dir ./runs
+```
+
+### Python API
+
+```python
+import asyncio
+from pathlib import Path
+from financial_scraper import ScraperConfig, ScraperPipeline
+
+config = ScraperConfig(
+    queries_file=Path("queries.txt"),
+    search_type="news",
+    max_results_per_query=20,
+    stealth=True,
+    resume=True,
+    crawl=True,
+    crawl_depth=1,
+    max_pages_per_domain=5,
+    output_dir=Path("./runs"),
+    exclude_file=Path("config/exclude_domains.txt"),
+)
+
+pipeline = ScraperPipeline(config)
+asyncio.run(pipeline.run())
+```
+
+---
+
+## Further Reading
+
+- [README](../README.md) -- project overview and quick start
+- [User Guide](user-guide.md) -- installation, configuration reference, scaling guide
+- [CLI Cookbook](cli-examples.md) -- copy-paste commands for every use case
+- [Architecture](architecture.md) -- module map, data flow diagrams, design rationale
+- [Ethical Scraping](ethical-scraping.md) -- rate limiting strategy and best practices

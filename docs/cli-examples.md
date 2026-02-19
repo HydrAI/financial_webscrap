@@ -190,6 +190,28 @@ financial-scraper --queries-file config/commodities_50.txt --search-type news --
 financial-scraper --queries-file config/commodities_50.txt --search-type news --resume --checkpoint my_checkpoint.json --output-dir ./runs
 ```
 
+### Re-run all queries (keep URL history)
+
+All queries completed but you want fresh search results? Use `--reset-queries` with `--resume` to re-search while skipping already-fetched URLs:
+
+```bash
+financial-scraper --queries-file config/commodities_50.txt --search-type news --resume --reset-queries --output-dir ./runs --exclude-file config/exclude_domains.txt
+```
+
+### Re-run with stealth + Tor (keep URL history)
+
+```bash
+financial-scraper --queries-file config/commodities_300.txt --search-type news --resume --reset-queries --stealth --use-tor --output-dir ./runs --exclude-file config/exclude_domains.txt --jsonl
+```
+
+### Full checkpoint reset (start from scratch)
+
+Delete the checkpoint entirely and run as if it's the first time:
+
+```bash
+financial-scraper --queries-file config/commodities_50.txt --search-type news --reset --output-dir ./runs --exclude-file config/exclude_domains.txt --jsonl
+```
+
 ---
 
 ## Analyze Output

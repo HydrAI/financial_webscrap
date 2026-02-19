@@ -113,6 +113,18 @@ financial-scraper --queries-file queries.txt --stealth --resume --output-dir ./r
 financial-scraper --queries-file queries.txt --resume --output-dir ./runs
 ```
 
+### Re-run queries (fresh search, keep URL history)
+
+```bash
+financial-scraper --queries-file queries.txt --resume --reset-queries --output-dir ./runs
+```
+
+### Full checkpoint reset (start from scratch)
+
+```bash
+financial-scraper --queries-file queries.txt --reset --output-dir ./runs
+```
+
 ### Deep crawl (follow links from fetched pages)
 
 ```bash
@@ -250,6 +262,8 @@ See [`docs/examples/`](docs/examples/) for more Python examples.
 | `--date-from YYYY-MM-DD` | - | Keep pages after this date |
 | `--date-to YYYY-MM-DD` | - | Keep pages before this date |
 | `--resume` | off | Resume from last checkpoint |
+| `--reset` | off | Delete checkpoint before running (fresh start) |
+| `--reset-queries` | off | Clear completed queries but keep URL history |
 | `--checkpoint FILE` | `.scraper_checkpoint.json` | Checkpoint file path |
 | `--exclude-file FILE` | - | Domain exclusion list |
 
@@ -313,6 +327,7 @@ The pipeline is modular, each stage is an independent module under `src/financia
 - **[User Guide](docs/user-guide.md)**, detailed installation, configuration reference, scaling guide, and troubleshooting
 - **[Architecture](docs/architecture.md)**, module map, data flow, and design rationale
 - **[Ethical Scraping](docs/ethical-scraping.md)**, rate limiting strategy, robots.txt, best practices
+- **[Technical Skills](docs/skills.md)**, engineering competencies demonstrated by this project, organized by domain
 - **[MCP Server Setup](docs/mcp-setup.md)**, use financial-scraper as an MCP tool server for LLMs - zero-cost search, fetch, and extraction vs. paid built-in web search
 
 ## Contributing
