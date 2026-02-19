@@ -33,6 +33,9 @@ class SearchResult:
     query: str
 
 
+MAX_COOLDOWN_SECONDS = 120  # Cap extra delay so it never spirals unboundedly
+
+
 class DDGSearcher:
     """DuckDuckGo search with robust rate limit handling and Tor integration."""
 
@@ -42,6 +45,7 @@ class DDGSearcher:
         self._tor = tor_manager
         self._consecutive_ratelimits = 0
         self._last_search_time = 0.0
+        self._hit_ratelimit = False  # set by _do_search_with_retry
 
     def _get_proxy(self) -> str | None:
         if self._tor and self._tor.is_available:
@@ -84,10 +88,12 @@ class DDGSearcher:
         """Search with tenacity retry on ratelimit."""
         from duckduckgo_search.exceptions import RatelimitException
 
+        self._hit_ratelimit = False
         for attempt in range(3):
             try:
                 return self._do_search_inner(query, max_results)
             except RatelimitException:
+                self._hit_ratelimit = True
                 logger.warning(f"DDG ratelimit on attempt {attempt + 1}/3 for '{query[:40]}...'")
                 if self._tor and self._tor.is_available:
                     self._tor.on_ratelimit()
@@ -105,8 +111,9 @@ class DDGSearcher:
         delay = random.uniform(self._config.search_delay_min,
                                self._config.search_delay_max)
         if self._consecutive_ratelimits > 0:
-            delay += self._consecutive_ratelimits * 15
-            logger.info(f"Extra cooldown: {self._consecutive_ratelimits * 15}s "
+            extra = min(self._consecutive_ratelimits * 15, MAX_COOLDOWN_SECONDS)
+            delay += extra
+            logger.info(f"Extra cooldown: {extra}s "
                         f"(consecutive ratelimits: {self._consecutive_ratelimits})")
 
         elapsed = time.time() - self._last_search_time
@@ -121,12 +128,13 @@ class DDGSearcher:
 
         raw = self._do_search_with_retry(query, max_results)
 
-        if raw:
-            self._consecutive_ratelimits = max(0, self._consecutive_ratelimits - 1)
+        # Only track actual ratelimits, not empty results from obscure queries
+        if self._hit_ratelimit:
+            self._consecutive_ratelimits += 1
+        elif raw:
+            self._consecutive_ratelimits = 0
             if self._tor:
                 self._tor.on_search_completed()
-        else:
-            self._consecutive_ratelimits += 1
 
         results = []
         for i, r in enumerate(raw):

@@ -212,15 +212,25 @@ class TestSearchWithTor:
         cfg = ScraperConfig(search_delay_min=0.0, search_delay_max=0.0)
         searcher = DDGSearcher(cfg)
 
-        # Empty result increments consecutive_ratelimits
+        # Empty result WITHOUT ratelimit does NOT increment counter
         with patch.object(searcher, "_do_search_with_retry", return_value=[]):
             searcher.search("test", 5)
+        assert searcher._consecutive_ratelimits == 0
+
+        # Actual ratelimit increments counter
+        def fake_retry_ratelimit(query, max_results):
+            searcher._hit_ratelimit = True
+            return []
+        with patch.object(searcher, "_do_search_with_retry", side_effect=fake_retry_ratelimit):
+            searcher.search("test2", 5)
         assert searcher._consecutive_ratelimits == 1
 
-        # Successful result decrements
-        with patch.object(searcher, "_do_search_with_retry",
-                         return_value=[{"href": "https://a.com", "title": "T", "body": "B"}]):
-            searcher.search("test2", 5)
+        # Successful result resets counter to 0
+        def fake_retry_success(query, max_results):
+            searcher._hit_ratelimit = False
+            return [{"href": "https://a.com", "title": "T", "body": "B"}]
+        with patch.object(searcher, "_do_search_with_retry", side_effect=fake_retry_success):
+            searcher.search("test3", 5)
         assert searcher._consecutive_ratelimits == 0
 
 
