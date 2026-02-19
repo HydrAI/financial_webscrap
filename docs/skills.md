@@ -105,7 +105,7 @@ A breakdown of the engineering competencies showcased in this project, organized
 | Source lines | ~1,800 |
 | Modules | 23 |
 | Test files | 19 |
-| Test cases | 60+ |
+| Test cases | 274 |
 | Coverage | 89% |
 | CLI options | 30+ |
 | Browser profiles | 5 |
