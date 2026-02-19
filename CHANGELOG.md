@@ -5,6 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.2] - 2026-02-19
+
+### Added
+
+- **TipRanks promo text removal**: 10 new regex patterns in `TextCleaner` strip TipRanks promotional blocks ("Claim X% Off TipRanks Premium", "Meet Your ETF AI Analyst", "Stock Analysis page", "Smart Investor Newsletter", etc.)
+- **Post-extraction content-type filters**: `is_ticker_page()` detects stock quote/profile pages (matching 3+ of: `52 Week`, `EPS (TTM)`, `P/E (TTM)`, `Prev Close`); `is_nature_index_page()` detects Nature Index research profiles. Pipeline rejects both after extraction.
+- **Trending/Related article block removal**: New patterns strip "Trending Articles", "Related Stories", "Recommended Stories" trailing blocks
+- **PR wire disclaimer removal**: Two regex patterns strip MENAFN-style multi-line disclaimer blocks ("We do not accept any responsibility or liability...")
+- 8 new domains in `exclude_domains.txt`: `caixinglobal.com`, `cnbc.com`, `theglobeandmail.com`, `zawya.com`, `nature.com`, `marketwatch.com`, `scmp.com`, `law.com`
+
+### Changed
+
+- `TextCleaner` boilerplate patterns expanded from 10 to 24 regex patterns
+- Pipeline now filters out non-article page types (ticker pages, Nature Index profiles) before storage
+- Domain exclusion list expanded from 40 to 48 domains
+- Updated DOCUMENTATION.md with content quality filtering details (Phase 7)
+
 ## [0.2.1] - 2026-02-19
 
 ### Added

@@ -35,10 +35,22 @@ wsj.com
 ft.com
 barrons.com
 bloomberg.com
+caixinglobal.com
+scmp.com
+law.com
 
 # Low quality financial
 substack.com
 seekingalpha.com
+
+# Ticker pages / TipRanks blurbs (>50% non-article content)
+marketwatch.com
+cnbc.com
+theglobeandmail.com
+zawya.com
+
+# Non-financial content
+nature.com
 
 # Russian / non-English noise
 rbc.ru

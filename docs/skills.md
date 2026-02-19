@@ -92,7 +92,7 @@ A breakdown of the engineering competencies showcased in this project, organized
 |-------|----------------|
 | **robots.txt compliance** | Checked before every fetch (with caching). Opt-out via `--no-robots` for authorized testing only |
 | **Rate limiting** | Per-domain adaptive throttle + configurable search delays (3-8s default). Stealth mode presets for large runs |
-| **Domain exclusions** | Configurable blocklist (40 domains: social media, paywalled, video sites) |
+| **Domain exclusions** | Configurable blocklist (48 domains: social media, paywalled, video, ticker/TipRanks, non-financial) |
 | **Tor privacy** | Optional SOCKS5 routing with circuit renewal to avoid IP-based blocking and protect researcher identity |
 | **Anti-fingerprinting awareness** | Realistic browser profiles, not just random User-Agents -- matching Accept, Accept-Language, Accept-Encoding headers per browser |
 

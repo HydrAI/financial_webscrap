@@ -40,7 +40,7 @@ This package replaces a monolithic 2183-line scraper (`compliant_scraper_v18.py`
 financial_scraper/
 ├── pyproject.toml                     # Package definition & dependencies
 ├── config/
-│   ├── exclude_domains.txt            # 40 blocked domains (social, video, paywalled)
+│   ├── exclude_domains.txt            # 48 blocked domains (social, video, paywalled, low-quality)
 │   ├── queries_example.txt            # Example query file
 │   ├── commodities_50.txt             # 50 commodity queries (energy, metals, grains, softs, livestock)
 │   ├── commodities_300.txt            # 305 commodity queries (comprehensive coverage)
@@ -68,7 +68,7 @@ financial_scraper/
 │   │   ├── __init__.py
 │   │   ├── html.py                    # trafilatura two-pass extraction
 │   │   ├── pdf.py                     # pdfplumber extraction
-│   │   ├── clean.py                   # Boilerplate removal (cookies, ads, etc.)
+│   │   ├── clean.py                   # Boilerplate removal + content-type filtering
 │   │   ├── date_filter.py             # Post-extraction date range filtering
 │   │   └── links.py                   # BFS link extraction + same-domain filtering
 │   └── store/
@@ -108,6 +108,12 @@ queries.txt
 │  + TextCleaner   │  Boilerplate regex removal
 └────────┬────────┘
          │ ExtractionResult
+         ▼
+┌─────────────────┐
+│  Content Filter  │  Reject ticker pages, Nature Index profiles
+│  (TextCleaner)   │  Post-extraction content-type detection
+└────────┬────────┘
+         │ Filtered results
          ▼
 ┌─────────────────┐
 │  DateFilter      │  Optional date range filtering
@@ -415,9 +421,9 @@ Each profile includes: User-Agent, Accept, Accept-Language, Accept-Encoding, Sec
 
 ### 6.9 `extract/clean.py` - TextCleaner
 
-**Purpose**: Remove boilerplate text that trafilatura missed.
+**Purpose**: Remove boilerplate text that trafilatura missed, and detect non-article page types.
 
-**Patterns removed** (10 regex):
+**Boilerplate patterns removed** (24 regex):
 - Cookie policy/consent notices
 - Newsletter subscription prompts
 - Social media share buttons
@@ -426,6 +432,15 @@ Each profile includes: User-Agent, Accept, Accept-Language, Accept-Encoding, Sec
 - Terms of service/privacy links
 - Bare URLs
 - Advertisement/sponsored content markers
+- TipRanks promotional blocks ("Claim X% Off", "Meet Your ETF AI Analyst", "Stock Analysis page", "Smart Investor Newsletter", etc.)
+- Trending/related/recommended article blocks
+- PR wire disclaimer blocks (MENAFN-style "We do not accept any responsibility or liability..." multi-line disclaimers)
+
+**Post-extraction content-type filters**:
+- `is_ticker_page(text)`: Detects stock quote/profile pages by matching 3+ of 4 fingerprints (`52 Week`, `EPS (TTM)`, `P/E (TTM)`, `Prev Close`). These pages contain structured market data, not article content.
+- `is_nature_index_page(text)`: Detects Nature Index research collaboration profiles by matching `Nature Index` + `Collaboration Score`. These are academic metrics pages, not financial news.
+
+Both filters are called by the pipeline after extraction to reject non-article pages before storage.
 
 **Additional**: Unicode NFKC normalization, whitespace collapse, per-line stripping.
 
@@ -498,8 +513,9 @@ Each profile includes: User-Agent, Accept, Accept-Language, Accept-Encoding, Sec
 3. BFS crawl loop (depth 0 = search results, depth 1+ = crawled links):
    a. Async fetch batch with throttling + fingerprints + robots
    b. Extract (HTML via trafilatura or PDF via pdfplumber)
-   c. If `crawl=True` and `depth < crawl_depth`: extract same-domain links for next depth
-   d. Post-clean, date filter, content dedup
+   c. Content-type filter: reject ticker/profile pages and Nature Index profiles
+   d. If `crawl=True` and `depth < crawl_depth`: extract same-domain links for next depth
+   e. Post-clean, date filter, content dedup
 4. Write all records to Parquet + JSONL + Markdown
 5. Checkpoint save (atomic)
 6. Print summary
@@ -724,6 +740,22 @@ financial_webscrap/
 - Added `src/financial_scraper/__main__.py` to enable `python -m financial_scraper` invocation (previously failed with "No module named financial_scraper.__main__")
 - Created `config/commodities_300.txt` with 305 queries across 11 categories: energy (crude, gas, refined, coal, nuclear, carbon), precious metals, base/industrial metals, battery/EV metals, fertilizers/chemicals, grains/oilseeds, softs/tropical, livestock/dairy, specialty agriculture, petrochemicals, and environmental/misc commodities
 
+### Phase 7: Content Quality Filtering (2026-02-19)
+
+Analysis of 1,923 merged articles from two scrape runs (Feb 18-19) revealed that ~24% of content was low-value: stock ticker pages, TipRanks promotional blurbs, paywall-truncated articles, and Nature Index profiles. Four improvements were implemented:
+
+1. **TipRanks promo text removal** (`extract/clean.py`): Added 10 regex patterns to strip TipRanks promotional blocks ("Claim X% Off", "Meet Your ETF AI Analyst", "Stock Analysis page", etc.) that were embedded in nasdaq.com, theglobeandmail.com, and businessinsider.com articles. Cleans 109+ articles per run.
+
+2. **Post-extraction content-type filter** (`extract/clean.py` + `pipeline.py`): New `is_ticker_page()` method detects stock quote/profile pages by matching 3+ of 4 fingerprints (`52 Week`, `EPS (TTM)`, `P/E (TTM)`, `Prev Close`). New `is_nature_index_page()` detects Nature Index research profiles. Pipeline rejects these after extraction instead of storing them.
+
+3. **Trending/Related articles removal** (`extract/clean.py`): Added patterns for "Trending Articles", "Related Stories", "Recommended Stories" blocks that appeared as trailing content in 72+ articles.
+
+4. **PR wire disclaimer removal** (`extract/clean.py`): Two regex patterns strip MENAFN-style multi-line disclaimer blocks ("We do not accept any responsibility or liability...kindly contact the provider above").
+
+5. **Domain exclusions** (`config/exclude_domains.txt`): Added 8 domains with >50% bad content rate: `caixinglobal.com` (100% paywall), `cnbc.com` (89% ticker pages), `theglobeandmail.com` (88% TipRanks blurbs), `nature.com` (84% non-financial), `bloomberg.com` (82% paywall), `zawya.com` (53% truncated), `scmp.com`, `law.com`. Total excluded domains: 48.
+
+**Impact**: In future scrapes, ~466 low-value articles per run will be blocked at domain level, ~32 ticker pages and ~32 Nature Index pages caught by post-extraction filter, and remaining articles have cleaner text.
+
 ### Errors Fixed During Development
 
 1. **pyproject.toml**: `setuptools.backends._legacy:_Backend` doesn't exist -> changed to `setuptools.build_meta`
@@ -762,7 +794,22 @@ ScraperConfig(
 
 ## Appendix A: Excluded Domains (config/exclude_domains.txt)
 
-40 domains blocked by default: social media (twitter, facebook, reddit, linkedin, tiktok), video (youtube, vimeo), shopping (amazon, ebay), paywalled sites (wsj, ft, bloomberg, nytimes, economist), and other non-content sites (google, bing, apple, wikipedia).
+48 domains blocked by default across these categories:
+
+| Category | Domains |
+|---|---|
+| Social media | twitter.com, x.com, facebook.com, reddit.com, linkedin.com, instagram.com, tiktok.com, pinterest.com, tumblr.com, snapchat.com |
+| Video | youtube.com, vimeo.com, dailymotion.com |
+| App stores | play.google.com, itunes.apple.com, apps.apple.com |
+| Shopping | amazon.com/.co.uk/.fr/.de, ebay.com, walmart.com, etsy.com, aliexpress.com |
+| Paywalled | wsj.com, ft.com, barrons.com, bloomberg.com, caixinglobal.com, scmp.com, law.com |
+| Low quality financial | substack.com, seekingalpha.com |
+| Ticker/TipRanks blurbs (>50% non-article) | marketwatch.com, cnbc.com, theglobeandmail.com, zawya.com |
+| Non-financial content | nature.com |
+| Russian/non-English noise | rbc.ru, mediametrics.ru, trk.mail.ru |
+| Aggregators | quora.com |
+| Job sites | indeed.com, glassdoor.com |
+| Search engines | bing.com, google.com, duckduckgo.com, yahoo.com |
 
 ## Appendix B: Query Files
 

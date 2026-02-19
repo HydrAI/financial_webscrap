@@ -58,7 +58,7 @@ graph TB
     subgraph Extract_mod["&nbsp; 📝 extract/ &nbsp;"]
         html["<b>html.py</b>\ntrafilatura 2-pass\nprecision → fallback"]
         pdf["<b>pdf.py</b>\npdfplumber\ntext extraction"]
-        clean["<b>clean.py</b>\n10 regex patterns\nboilerplate removal"]
+        clean["<b>clean.py</b>\n24 regex patterns\nboilerplate + content-type filter"]
         date_filter["<b>date_filter.py</b>\nYYYY-MM-DD range\npost-extraction filter"]
         links["<b>links.py</b>\nBFS link extraction\nsame-domain filter"]
     end

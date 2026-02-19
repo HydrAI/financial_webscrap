@@ -234,6 +234,18 @@ class ScraperPipeline:
                         total_failed += 1
                         continue
 
+                    # Post-extraction content-type filter: reject non-article pages
+                    if self._cleaner.is_ticker_page(ex.text):
+                        logger.debug(f"  Skipped ticker/profile page: {url}")
+                        self._checkpoint.stats["failed_extractions"] += 1
+                        total_failed += 1
+                        continue
+                    if self._cleaner.is_nature_index_page(ex.text):
+                        logger.debug(f"  Skipped Nature Index profile: {url}")
+                        self._checkpoint.stats["failed_extractions"] += 1
+                        total_failed += 1
+                        continue
+
                     # Date filter
                     if self._date_filter.is_active and not self._date_filter.passes(ex.date):
                         continue
