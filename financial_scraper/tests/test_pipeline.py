@@ -66,6 +66,36 @@ class TestLoadExclusions:
         assert result == set()
 
 
+class TestIsExcludedDomain:
+    def test_exact_match(self, tmp_path):
+        ef = tmp_path / "exclude.txt"
+        ef.write_text("google.com\n")
+        p = _make_pipeline(tmp_path, exclude_file=ef)
+        p._exclusions = p._load_exclusions()
+        assert p._is_excluded_domain("https://google.com/search") is True
+
+    def test_subdomain_matches_base(self, tmp_path):
+        ef = tmp_path / "exclude.txt"
+        ef.write_text("google.com\n")
+        p = _make_pipeline(tmp_path, exclude_file=ef)
+        p._exclusions = p._load_exclusions()
+        assert p._is_excluded_domain("https://support.google.com/foo") is True
+        assert p._is_excluded_domain("https://play.google.com/store") is True
+        assert p._is_excluded_domain("https://mail.google.com/inbox") is True
+
+    def test_non_excluded_domain_passes(self, tmp_path):
+        ef = tmp_path / "exclude.txt"
+        ef.write_text("google.com\n")
+        p = _make_pipeline(tmp_path, exclude_file=ef)
+        p._exclusions = p._load_exclusions()
+        assert p._is_excluded_domain("https://reuters.com/article") is False
+
+    def test_no_exclusions_passes_all(self, tmp_path):
+        p = _make_pipeline(tmp_path, exclude_file=None)
+        p._exclusions = p._load_exclusions()
+        assert p._is_excluded_domain("https://google.com/search") is False
+
+
 class TestExtractDomain:
     def test_basic(self):
         assert ScraperPipeline._extract_domain("https://Example.COM/page") == "example.com"

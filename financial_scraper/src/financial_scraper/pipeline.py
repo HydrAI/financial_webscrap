@@ -119,8 +119,7 @@ class ScraperPipeline:
             excluded = 0
             already_seen = 0
             for sr in search_results:
-                domain = self._extract_domain(sr.url)
-                if domain in self._exclusions:
+                if self._is_excluded_domain(sr.url):
                     excluded += 1
                     continue
                 if self._dedup.is_duplicate_url(sr.url):
@@ -364,6 +363,19 @@ class ScraperPipeline:
                     domains.add(line)
         logger.info(f"Loaded {len(domains)} excluded domains")
         return domains
+
+    def _is_excluded_domain(self, url: str) -> bool:
+        """Check if URL's domain or base domain is in the exclusion set."""
+        domain = self._extract_domain(url)
+        if domain in self._exclusions:
+            return True
+        # Check base domain (e.g. support.google.com -> google.com)
+        parts = domain.split(".")
+        if len(parts) > 2:
+            base = ".".join(parts[-2:])
+            if base in self._exclusions:
+                return True
+        return False
 
     @staticmethod
     def _extract_domain(url: str) -> str:

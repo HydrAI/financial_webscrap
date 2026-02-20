@@ -64,6 +64,35 @@ quora.com
 indeed.com
 glassdoor.com
 
+# Code hosting
+github.com
+gitlab.com
+
+# Tech support / noise
+microsoft.com
+apple.com
+ibm.com
+wikipedia.org
+
+# Forums (non-English, non-financial)
+juraforum.de
+motor-talk.de
+50plus-treff.de
+donanimhaber.com
+alib.ru
+ksyos.nl
+bolshoyvopros.ru
+breuninger.com
+kinopoisk.ru
+commentcamarche.net
+ccm.net
+seznam.cz
+dobreprogramy.pl
+aligro.ch
+
+# E-commerce (non-English)
+ebay.de
+
 # Search engines (noise)
 bing.com
 google.com

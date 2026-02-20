@@ -96,10 +96,15 @@ def filter_links_same_domain(
         if link_base != source_base:
             continue
 
-        # Exclusion check
+        # Exclusion check (subdomain-aware)
         domain_clean = hostname.replace("www.", "").split(":")[0]
         if domain_clean in exclusions:
             continue
+        parts = domain_clean.split(".")
+        if len(parts) > 2:
+            base = ".".join(parts[-2:])
+            if base in exclusions:
+                continue
 
         # Already seen
         if url in seen_urls:
