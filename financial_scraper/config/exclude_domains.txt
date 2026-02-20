@@ -29,6 +29,7 @@ ebay.com
 walmart.com
 etsy.com
 aliexpress.com
+alibaba.com
 
 # Paywalled (extraction fails or returns paywall text)
 wsj.com
@@ -73,6 +74,11 @@ microsoft.com
 apple.com
 ibm.com
 wikipedia.org
+zoominfo.com
+dblp.org
+
+# Adult / spam
+viralxxxporn.com
 
 # Forums (non-English, non-financial)
 juraforum.de
@@ -88,6 +94,7 @@ commentcamarche.net
 ccm.net
 seznam.cz
 dobreprogramy.pl
+elektroda.pl
 aligro.ch
 
 # E-commerce (non-English)
