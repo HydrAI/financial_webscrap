@@ -223,16 +223,25 @@ financial-scraper crawl --urls-file config/seed_urls.txt --max-depth 1 --output-
 financial-scraper crawl --urls-file config/seed_urls.txt --max-depth 2 --stealth --output-dir ./runs
 ```
 
-### Crawl with Docling PDF extraction
+### Crawl PDF-heavy sites (e.g. SEC filings, annual reports)
 
-```bash
-financial-scraper crawl --urls-file config/seed_urls.txt --max-depth 2 --pdf-extractor docling --output-dir ./runs
+Seed URLs can point directly to PDFs. The pipeline detects PDFs by URL extension or content-type header:
+
+```text
+# seed_pdfs.txt
+https://www.sec.gov/Archives/edgar/data/320193/000032019323000106/aapl-20230930.htm
+https://www.sec.gov/Archives/edgar/data/320193/000032019323000106/aapl-20230930-10k.pdf
 ```
 
-### Crawl with pdfplumber fallback (no Docling installed)
-
 ```bash
-financial-scraper crawl --urls-file config/seed_urls.txt --max-depth 2 --pdf-extractor pdfplumber --output-dir ./runs
+# Auto backend (Docling if installed, otherwise pdfplumber)
+financial-scraper crawl --urls-file seed_pdfs.txt --max-depth 1 --output-dir ./runs
+
+# Docling for layout-aware extraction (tables, structure)
+financial-scraper crawl --urls-file seed_pdfs.txt --max-depth 1 --pdf-extractor docling --output-dir ./runs
+
+# pdfplumber for lightweight extraction (no ML dependencies)
+financial-scraper crawl --urls-file seed_pdfs.txt --max-depth 1 --pdf-extractor pdfplumber --output-dir ./runs
 ```
 
 > **Tip:** The `company` field in crawl output is set to the seed URL's domain (e.g. `reuters.com`), and `source_file` tags use the `_crawl_` prefix (e.g. `reuters_com_crawl_2026Q1.parquet`).

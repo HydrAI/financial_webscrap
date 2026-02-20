@@ -631,6 +631,28 @@ This will:
 | `--pdf-extractor {auto,docling,pdfplumber}` | `auto` | PDF extraction backend |
 | `--stealth` | off | Reduce concurrency to 1 |
 
+### PDF extraction
+
+When the crawl pipeline encounters a PDF URL (detected by `.pdf` extension or `application/pdf` content-type header), it downloads the file directly and extracts text using the configured PDF backend. Two backends are available:
+
+| Backend | Install | Strengths |
+|---------|---------|-----------|
+| **pdfplumber** | Always installed | Lightweight, fast, reliable for text-based PDFs |
+| **Docling** | `pip install -e ".[docling]"` | Layout-aware, table detection, hierarchical structure, better for complex PDFs |
+
+```bash
+# Auto (default): uses Docling if installed, falls back to pdfplumber
+financial-scraper crawl --urls-file seed_urls.txt --max-depth 2 --output-dir ./runs
+
+# Explicitly use Docling for complex PDFs (SEC filings, annual reports)
+financial-scraper crawl --urls-file seed_urls.txt --max-depth 2 --pdf-extractor docling --output-dir ./runs
+
+# Explicitly use pdfplumber (lighter, no ML dependencies)
+financial-scraper crawl --urls-file seed_urls.txt --max-depth 2 --pdf-extractor pdfplumber --output-dir ./runs
+```
+
+Seed URLs can point directly to PDF files. PDF and HTML results use the same Parquet output schema, so they can be analyzed together.
+
 ### How scoring works
 
 crawl4ai's BFS expander scores discovered URLs before deciding which to visit next. The crawl pipeline uses a composite scorer with:

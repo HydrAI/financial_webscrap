@@ -104,82 +104,66 @@ Install [Tor Browser](https://www.torproject.org/) (uses port 9150) or the Tor d
 
 ## Usage Examples
 
-### Basic query file scraping
+### News search (financial articles, earnings, market updates)
 
 ```bash
-financial-scraper --queries-file queries.txt --output-dir ./runs
+financial-scraper --queries-file queries.txt --search-type news --output-dir ./runs
 ```
 
-### Date-filtered news scraping
+Searches DuckDuckGo News for each query, fetches pages, extracts clean text. Best for recent financial content. Add `--date-from 2025-01-01 --date-to 2025-12-31` to filter by publication date.
+
+### Text search (research papers, SEC filings, reference content)
 
 ```bash
-financial-scraper --queries-file queries.txt --search-type news --date-from 2025-01-01 --date-to 2025-12-31 --output-dir ./runs
+financial-scraper --queries-file queries.txt --search-type text --output-dir ./runs --exclude-file config/exclude_domains.txt
 ```
 
-### Tor-routed privacy mode
+Searches DuckDuckGo Web instead of News. Broader results, better for academic papers, regulatory filings, and reference material. More rate-limiting than news mode.
+
+### URL crawl - HTML pages (crawl subcommand)
+
+Skip search entirely — provide seed URLs and crawl4ai's headless browser discovers and extracts HTML content:
 
 ```bash
-financial-scraper --queries-file queries.txt --use-tor --tor-socks-port 9150 --output-dir ./runs
+financial-scraper crawl --urls-file seed_urls.txt --max-depth 2 --max-pages 50 --output-dir ./runs
 ```
 
-### Stealth mode for large runs
+Handles JS-rendered pages, follows internal links using BFS with financial-keyword scoring. Seed URL file format is one URL per line (`#` comments allowed).
+
+### URL crawl - PDF extraction
+
+When crawl4ai encounters PDF URLs (detected by `.pdf` extension or `application/pdf` content-type), they are downloaded and extracted automatically:
 
 ```bash
-financial-scraper --queries-file queries.txt --stealth --resume --output-dir ./runs
+# Auto-detect backend: uses Docling if installed, otherwise pdfplumber
+financial-scraper crawl --urls-file seed_urls.txt --max-depth 2 --output-dir ./runs
+
+# Explicitly use Docling (layout-aware, table detection)
+financial-scraper crawl --urls-file seed_urls.txt --max-depth 2 --pdf-extractor docling --output-dir ./runs
+
+# Explicitly use pdfplumber (lightweight, always available)
+financial-scraper crawl --urls-file seed_urls.txt --max-depth 2 --pdf-extractor pdfplumber --output-dir ./runs
 ```
 
-### Resume an interrupted job
+Seed URLs can point directly to PDFs (e.g. SEC filings). PDF and HTML results share the same Parquet output schema.
+
+### More options
 
 ```bash
-financial-scraper --queries-file queries.txt --resume --output-dir ./runs
-```
+# Stealth mode for large runs (reduced concurrency + longer delays)
+financial-scraper --queries-file queries.txt --search-type news --stealth --resume --output-dir ./runs
 
-### Re-run queries (fresh search, keep URL history)
+# Tor-routed privacy mode
+financial-scraper --queries-file queries.txt --search-type news --use-tor --output-dir ./runs
 
-```bash
-financial-scraper --queries-file queries.txt --resume --reset-queries --output-dir ./runs
-```
-
-### Full checkpoint reset (start from scratch)
-
-```bash
-financial-scraper --queries-file queries.txt --reset --output-dir ./runs
-```
-
-### Deep crawl (follow links from fetched pages)
-
-```bash
+# Deep crawl from search results (follow same-domain links)
 financial-scraper --queries-file queries.txt --search-type news --crawl --crawl-depth 1 --max-pages-per-domain 5 --output-dir ./runs
-```
 
-### Deep crawl with stealth (production)
+# Resume an interrupted job
+financial-scraper --queries-file queries.txt --resume --output-dir ./runs
 
-```bash
-financial-scraper search --queries-file queries.txt --search-type news --crawl --crawl-depth 2 --max-pages-per-domain 10 --stealth --resume --output-dir ./runs --exclude-file config/exclude_domains.txt
-```
-
-### URL deep-crawl (crawl subcommand)
-
-Skip search entirely — provide seed URLs and let crawl4ai's headless browser discover pages:
-
-```bash
-# Basic: crawl seed URLs to depth 2
-financial-scraper crawl --urls-file config/seed_urls.txt --max-depth 2 --output-dir ./runs
-
-# More pages, with exclusions
-financial-scraper crawl --urls-file config/seed_urls.txt --max-depth 3 --max-pages 100 --exclude-file config/exclude_domains.txt --output-dir ./runs
-
-# Resume interrupted crawl
-financial-scraper crawl --urls-file config/seed_urls.txt --resume --output-dir ./runs
-
-# With JSONL + Markdown output
-financial-scraper crawl --urls-file config/seed_urls.txt --max-depth 1 --output-dir ./runs --jsonl --markdown
-```
-
-### JSONL output alongside Parquet
-
-```bash
-financial-scraper --queries-file queries.txt --output-dir ./runs --jsonl
+# JSONL + Markdown output alongside Parquet
+financial-scraper --queries-file queries.txt --output-dir ./runs --jsonl --markdown
 ```
 
 ---
