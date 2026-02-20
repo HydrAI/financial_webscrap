@@ -8,7 +8,7 @@ flowchart LR
     A([" 📄 Query File\n<i>one per line</i> "]):::blue
     B([" 🔍 DDG Search\n<i>text / news · retry</i> "]):::orange
     C([" 🌐 Async Fetch\n<i>aiohttp · throttle · Tor</i> "]):::purple
-    D([" 📝 Extract\n<i>trafilatura · pdfplumber</i> "]):::green
+    D([" 📝 Extract\n<i>trafilatura · pdfplumber · Docling</i> "]):::green
     E([" 💾 Dedup + Store\n<i>Parquet · JSONL · checkpoint</i> "]):::red
 
     A --> B --> C --> D --> E
@@ -32,15 +32,21 @@ flowchart LR
 graph TB
     subgraph CLI["&nbsp; 🖥️ CLI Layer &nbsp;"]
         direction LR
-        main["<b>main.py</b>\nargparse CLI\noutput path resolution"]
+        main["<b>main.py</b>\nargparse subcommands\nsearch · crawl"]
         dunder_main["<b>__main__.py</b>\npython -m entry point"]
     end
 
     subgraph Core["&nbsp; ⚙️ Core &nbsp;"]
         direction LR
         config["<b>config.py</b>\nScraperConfig\nfrozen dataclass\n30+ fields"]
-        pipeline["<b>pipeline.py</b>\nOrchestrator\nwires all stages"]
+        pipeline["<b>pipeline.py</b>\nSearch orchestrator\nwires all stages"]
         checkpoint["<b>checkpoint.py</b>\nAtomic JSON saves\ncrash recovery"]
+    end
+
+    subgraph Crawl_mod["&nbsp; 🕷️ crawl/ &nbsp;"]
+        crawl_config["<b>config.py</b>\nCrawlConfig\nfrozen dataclass"]
+        crawl_pipeline["<b>pipeline.py</b>\nCrawlPipeline\ncrawl4ai → extract → store"]
+        crawl_strategy["<b>strategy.py</b>\nBFS strategy builder\nscoring + filters"]
     end
 
     subgraph Search_mod["&nbsp; 🔍 search/ &nbsp;"]
@@ -57,7 +63,7 @@ graph TB
 
     subgraph Extract_mod["&nbsp; 📝 extract/ &nbsp;"]
         html["<b>html.py</b>\ntrafilatura 2-pass\nprecision → fallback"]
-        pdf["<b>pdf.py</b>\npdfplumber\ntext extraction"]
+        pdf["<b>pdf.py</b>\npdfplumber · Docling\nPDF text extraction"]
         clean["<b>clean.py</b>\n24 regex patterns\nboilerplate + content-type filter"]
         date_filter["<b>date_filter.py</b>\nYYYY-MM-DD range\npost-extraction filter"]
         links["<b>links.py</b>\nBFS link extraction\nsame-domain filter"]
@@ -71,6 +77,7 @@ graph TB
     dunder_main ==> main
     main ==> config
     main ==> pipeline
+    main ==> crawl_pipeline
     pipeline --> ddg
     pipeline --> client
     pipeline --> html
@@ -85,6 +92,15 @@ graph TB
     client -.-> throttle
     client -.-> robots
     client -.-> tor
+    crawl_pipeline --> crawl_config
+    crawl_pipeline --> crawl_strategy
+    crawl_pipeline --> html
+    crawl_pipeline --> pdf
+    crawl_pipeline --> clean
+    crawl_pipeline --> date_filter
+    crawl_pipeline --> dedup
+    crawl_pipeline --> output
+    crawl_pipeline --> checkpoint
 
     classDef cliStyle fill:#f8f9fa,stroke:#6c757d,stroke-width:2px
     classDef coreStyle fill:#e8f4fd,stroke:#4a90d9,stroke-width:2px
@@ -92,6 +108,7 @@ graph TB
     classDef fetchStyle fill:#ede7f6,stroke:#7b68ee,stroke-width:2px
     classDef extractStyle fill:#e8f5e9,stroke:#50c878,stroke-width:2px
     classDef storeStyle fill:#fce4ec,stroke:#e74c3c,stroke-width:2px
+    classDef crawlStyle fill:#e0f7fa,stroke:#00838f,stroke-width:2px
 
     class main,dunder_main cliStyle
     class config,pipeline,checkpoint coreStyle
@@ -99,6 +116,7 @@ graph TB
     class client,fingerprints,throttle,robots,tor fetchStyle
     class html,pdf,clean,date_filter,links extractStyle
     class dedup,output storeStyle
+    class crawl_config,crawl_pipeline,crawl_strategy crawlStyle
 
     style CLI fill:#f8f9fa,stroke:#6c757d,stroke-width:2px,stroke-dasharray: 0
     style Core fill:#e8f4fd,stroke:#4a90d9,stroke-width:2px,stroke-dasharray: 0
@@ -106,6 +124,7 @@ graph TB
     style Fetch_mod fill:#ede7f6,stroke:#7b68ee,stroke-width:2px,stroke-dasharray: 0
     style Extract_mod fill:#e8f5e9,stroke:#50c878,stroke-width:2px,stroke-dasharray: 0
     style Store_mod fill:#fce4ec,stroke:#e74c3c,stroke-width:2px,stroke-dasharray: 0
+    style Crawl_mod fill:#e0f7fa,stroke:#00838f,stroke-width:2px,stroke-dasharray: 0
 ```
 
 ## Data Flow
@@ -135,7 +154,7 @@ flowchart LR
 
     Q ==>|"DDG\nSearch"| S1
     S1 ==>|"Async\nFetch"| S2
-    S2 ==>|"trafilatura\npdfplumber"| S3
+    S2 ==>|"trafilatura\npdfplumber · Docling"| S3
     S3 ==>|"Dedup\n+ Write"| S4
 
     classDef grey fill:#f5f5f5,stroke:#999,stroke-width:2px
@@ -229,7 +248,7 @@ flowchart TD
     INPUT(["📥 FetchResult"]):::grey --> TYPE{"Content\ntype?"}:::decision
 
     TYPE -->|"text/html"| PASS1["🎯 trafilatura\n<b>Precision mode</b>\nhigh accuracy, may miss content"]:::green
-    TYPE -->|"application/pdf"| PDF["📄 pdfplumber\nextract all page text"]:::purple
+    TYPE -->|"application/pdf"| PDF["📄 pdfplumber / Docling\nextract all page text"]:::purple
 
     PASS1 --> CHECK1{"Got\ntext?"}:::decision
     CHECK1 -->|"Yes"| CLEAN
@@ -266,3 +285,7 @@ flowchart TD
 **Checkpoint per query**,Queries are the natural unit of work (5-20 pages each). Atomic JSON writes (write to temp file, then rename) prevent corruption on crash.
 
 **Parquet output**,Columnar format with snappy compression. Schema matches the downstream `merged_by_year` pipeline for compatibility. Append mode allows incremental writes.
+
+**Crawl subcommand (crawl4ai)**,The `crawl` subcommand uses crawl4ai's `AsyncWebCrawler` with `BestFirstCrawlingStrategy` for headless browser crawling. This handles JS-rendered pages, link discovery, BFS scheduling, and anti-detection internally. The crawl pipeline reuses the same extract/store layers (HTMLExtractor, TextCleaner, Deduplicator, ParquetWriter) as the search pipeline, keeping the architecture DRY. URL scoring prioritises financial content keywords and penalises deep or stale paths. PDF URLs encountered during crawling are detected (by URL extension or content-type header), downloaded directly, and extracted using the configured PDF backend (`--pdf-extractor`).
+
+**PDF extraction**,Two backends are available: **pdfplumber** (lightweight, always installed) and **Docling** (layout-aware with table detection and hierarchical structure, optional via `pip install financial-scraper[docling]`). The `--pdf-extractor auto` default uses Docling when available, falling back to pdfplumber. Both backends produce the same `ExtractionResult` interface, so downstream dedup, filtering, and storage are unaffected by the choice.

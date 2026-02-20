@@ -66,7 +66,12 @@ def make_source_file_tag(query: str, date_str: str | None, search_type: str) -> 
     else:
         quarter_tag = _current_quarter_tag()
 
-    mode = "ddgnews" if search_type == "news" else "ddgtext"
+    if search_type == "crawl":
+        mode = "crawl"
+    elif search_type == "news":
+        mode = "ddgnews"
+    else:
+        mode = "ddgtext"
     return f"{slug}_{mode}_{quarter_tag}.parquet"
 
 

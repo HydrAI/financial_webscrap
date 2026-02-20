@@ -176,6 +176,69 @@ financial-scraper --queries-file config/test_commodities3.txt --search-type news
 
 ---
 
+## URL Deep-Crawl (`crawl` subcommand)
+
+The `crawl` subcommand skips search entirely. Provide a file of seed URLs and crawl4ai's headless browser discovers and extracts content from each site. Requires `pip install -e ".[crawl]"`.
+
+### Seed URL file format
+
+One URL per line, `#` comments:
+
+```text
+# Financial news sites
+https://reuters.com/business
+https://bloomberg.com/markets
+
+# Company investor pages
+https://investor.apple.com
+```
+
+### Quick crawl test (depth 1)
+
+```bash
+financial-scraper crawl --urls-file config/seed_urls.txt --max-depth 1 --max-pages 10 --output-dir ./runs
+```
+
+### Production crawl (depth 2, with exclusions)
+
+```bash
+financial-scraper crawl --urls-file config/seed_urls.txt --max-depth 2 --max-pages 50 --exclude-file config/exclude_domains.txt --output-dir ./runs --jsonl
+```
+
+### Resume an interrupted crawl
+
+```bash
+financial-scraper crawl --urls-file config/seed_urls.txt --resume --output-dir ./runs
+```
+
+### Crawl with Markdown export
+
+```bash
+financial-scraper crawl --urls-file config/seed_urls.txt --max-depth 1 --output-dir ./runs --markdown --jsonl
+```
+
+### Stealth crawl (reduced concurrency)
+
+```bash
+financial-scraper crawl --urls-file config/seed_urls.txt --max-depth 2 --stealth --output-dir ./runs
+```
+
+### Crawl with Docling PDF extraction
+
+```bash
+financial-scraper crawl --urls-file config/seed_urls.txt --max-depth 2 --pdf-extractor docling --output-dir ./runs
+```
+
+### Crawl with pdfplumber fallback (no Docling installed)
+
+```bash
+financial-scraper crawl --urls-file config/seed_urls.txt --max-depth 2 --pdf-extractor pdfplumber --output-dir ./runs
+```
+
+> **Tip:** The `company` field in crawl output is set to the seed URL's domain (e.g. `reuters.com`), and `source_file` tags use the `_crawl_` prefix (e.g. `reuters_com_crawl_2026Q1.parquet`).
+
+---
+
 ## Resume & Recovery
 
 ### Resume an interrupted run

@@ -9,4 +9,12 @@ __all__ = [
 ]
 
 from financial_scraper.config import ScraperConfig
-from financial_scraper.pipeline import ScraperPipeline
+
+
+def __getattr__(name):
+    """Lazy import for ScraperPipeline to avoid eagerly loading duckduckgo
+    (which sets WindowsSelectorEventLoopPolicy, breaking Playwright)."""
+    if name == "ScraperPipeline":
+        from financial_scraper.pipeline import ScraperPipeline
+        return ScraperPipeline
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

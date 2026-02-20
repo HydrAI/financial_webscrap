@@ -14,14 +14,15 @@ Ethical, async web scraper for financial research. Searches DuckDuckGo, fetches 
 - **Ethical by default**, robots.txt compliance, adaptive per-domain rate limiting
 - **DuckDuckGo search**, text and news modes, no API keys required
 - **Async HTTP**, aiohttp with configurable concurrency and per-domain throttling
-- **HTML + PDF extraction**, trafilatura 2-pass for HTML, pdfplumber for PDFs
+- **HTML + PDF extraction**, trafilatura 2-pass for HTML, pdfplumber or Docling for PDFs (layout-aware with table detection)
 - **Content deduplication**, URL normalization + SHA256 content hashing
 - **Checkpoint/resume**, atomic saves after each query, crash recovery
 - **Fingerprint rotation**, 5 browser profiles to reduce bot detection
 - **Parquet + JSONL output**, columnar storage with snappy compression
 - **Date filtering**, keep only pages within a date range
 - **Tor support**, SOCKS5 proxy with automatic circuit renewal
-- **Deep crawl**, BFS link-following to discover content beyond search results (same-domain, depth-limited)
+- **Deep crawl** (search mode), BFS link-following to discover content beyond search results (same-domain, depth-limited)
+- **URL deep-crawl** (crawl mode), crawl4ai-powered headless browser crawling from seed URLs with smart scoring
 - **Stealth mode**, reduced concurrency + longer delays preset
 
 ---
@@ -30,7 +31,13 @@ Ethical, async web scraper for financial research. Searches DuckDuckGo, fetches 
 
 ```bash
 pip install -e ./financial_scraper
-financial-scraper --queries-file queries.txt --search-type news --output-dir ./runs
+
+# Search mode (default) — search DDG, fetch, extract
+financial-scraper search --queries-file queries.txt --search-type news --output-dir ./runs
+
+# Crawl mode — deep-crawl seed URLs with crawl4ai (headless browser)
+pip install -e "./financial_scraper[crawl]"
+financial-scraper crawl --urls-file urls.txt --max-depth 2 --output-dir ./runs
 ```
 
 ---
@@ -74,6 +81,20 @@ python -m financial_scraper --help
 pip install -e ".[dev]"
 python -m pytest tests/ -v
 ```
+
+### With crawl4ai (for the `crawl` subcommand)
+
+```bash
+pip install -e ".[crawl]"
+```
+
+### With Docling (for layout-aware PDF extraction)
+
+```bash
+pip install -e ".[docling]"
+```
+
+Without Docling, PDFs are extracted using pdfplumber (always available). The `--pdf-extractor auto` default uses Docling when installed.
 
 ### Tor setup (optional)
 
@@ -134,7 +155,25 @@ financial-scraper --queries-file queries.txt --search-type news --crawl --crawl-
 ### Deep crawl with stealth (production)
 
 ```bash
-financial-scraper --queries-file queries.txt --search-type news --crawl --crawl-depth 2 --max-pages-per-domain 10 --stealth --resume --output-dir ./runs --exclude-file config/exclude_domains.txt
+financial-scraper search --queries-file queries.txt --search-type news --crawl --crawl-depth 2 --max-pages-per-domain 10 --stealth --resume --output-dir ./runs --exclude-file config/exclude_domains.txt
+```
+
+### URL deep-crawl (crawl subcommand)
+
+Skip search entirely — provide seed URLs and let crawl4ai's headless browser discover pages:
+
+```bash
+# Basic: crawl seed URLs to depth 2
+financial-scraper crawl --urls-file config/seed_urls.txt --max-depth 2 --output-dir ./runs
+
+# More pages, with exclusions
+financial-scraper crawl --urls-file config/seed_urls.txt --max-depth 3 --max-pages 100 --exclude-file config/exclude_domains.txt --output-dir ./runs
+
+# Resume interrupted crawl
+financial-scraper crawl --urls-file config/seed_urls.txt --resume --output-dir ./runs
+
+# With JSONL + Markdown output
+financial-scraper crawl --urls-file config/seed_urls.txt --max-depth 1 --output-dir ./runs --jsonl --markdown
 ```
 
 ### JSONL output alongside Parquet
@@ -231,12 +270,21 @@ See [`docs/examples/`](docs/examples/) for more Python examples.
 
 ## CLI Reference
 
+The CLI uses subcommands. Backward compatible: omitting the subcommand defaults to `search`.
+
+### `search` subcommand (default)
+
+```bash
+financial-scraper search --queries-file queries.txt [OPTIONS]
+```
+
 | Flag | Default | Description |
 |------|---------|-------------|
 | `--queries-file FILE` | *required* | Text file with one query per line |
 | `--output FILE` | - | Explicit `.parquet` output path |
 | `--output-dir DIR` | `.` | Base directory for timestamped output folders |
 | `--jsonl` | off | Also write JSONL alongside Parquet |
+| `--markdown` | off | Also write Markdown output |
 | `--search-type {text,news}` | `text` | DuckDuckGo search mode |
 | `--max-results N` | `20` | Results per query |
 | `--timelimit {d,w,m,y}` | - | DDG time filter |
@@ -266,6 +314,36 @@ See [`docs/examples/`](docs/examples/) for more Python examples.
 | `--reset-queries` | off | Clear completed queries but keep URL history |
 | `--checkpoint FILE` | `.scraper_checkpoint.json` | Checkpoint file path |
 | `--exclude-file FILE` | - | Domain exclusion list |
+
+### `crawl` subcommand
+
+Deep-crawl seed URLs using crawl4ai's headless browser with BFS scoring. Requires `pip install -e ".[crawl]"`.
+
+```bash
+financial-scraper crawl --urls-file urls.txt [OPTIONS]
+```
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--urls-file FILE` | *required* | Text file with seed URLs (one per line) |
+| `--output-dir DIR` | `.` | Base directory for timestamped output folders |
+| `--max-depth N` | `2` | Max crawl depth from each seed URL |
+| `--max-pages N` | `50` | Max pages discovered per seed URL |
+| `--semaphore-count N` | `2` | crawl4ai concurrency level |
+| `--min-words N` | `100` | Minimum word count to keep |
+| `--target-language LANG` | - | ISO language filter |
+| `--no-favor-precision` | off | Disable trafilatura precision mode |
+| `--date-from YYYY-MM-DD` | - | Keep pages after this date |
+| `--date-to YYYY-MM-DD` | - | Keep pages before this date |
+| `--jsonl` | off | Also write JSONL output |
+| `--markdown` | off | Also write Markdown output |
+| `--exclude-file FILE` | - | Domain exclusion list |
+| `--checkpoint FILE` | `.crawl_checkpoint.json` | Checkpoint file path |
+| `--resume` | off | Resume from last checkpoint |
+| `--reset` | off | Delete checkpoint before running |
+| `--no-robots` | off | Skip robots.txt checking |
+| `--pdf-extractor {auto,docling,pdfplumber}` | `auto` | PDF extraction backend |
+| `--stealth` | off | Reduced concurrency mode |
 
 ---
 
@@ -300,7 +378,7 @@ flowchart LR
     A([" 📄 Query File\n<i>one per line</i> "]):::blue
     B([" 🔍 DDG Search\n<i>text / news · retry</i> "]):::orange
     C([" 🌐 Async Fetch\n<i>aiohttp · throttle · Tor</i> "]):::purple
-    D([" 📝 Extract\n<i>trafilatura · pdfplumber</i> "]):::green
+    D([" 📝 Extract\n<i>trafilatura · pdfplumber · Docling</i> "]):::green
     E([" 💾 Dedup + Store\n<i>Parquet · JSONL · checkpoint</i> "]):::red
 
     A --> B --> C --> D --> E

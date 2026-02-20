@@ -14,9 +14,10 @@ A step-by-step guide to installing, configuring, and running financial-scraper,f
 6. [Configuration Reference](#configuration-reference)
 7. [Scaling Up](#scaling-up)
 8. [Using Tor](#using-tor)
-9. [Python API Reference](#python-api-reference)
-10. [Troubleshooting & FAQ](#troubleshooting--faq)
-11. [Platform Notes](#platform-notes)
+9. [URL Deep-Crawl (crawl subcommand)](#url-deep-crawl-crawl-subcommand)
+10. [Python API Reference](#python-api-reference)
+11. [Troubleshooting & FAQ](#troubleshooting--faq)
+12. [Platform Notes](#platform-notes)
 
 ---
 
@@ -114,6 +115,14 @@ pip install -e ".[dev]"
 python -m pytest tests/ -v
 ```
 
+### Installing Docling for layout-aware PDF extraction (optional)
+
+Docling provides superior PDF extraction with table detection and hierarchical structure. Without it, PDFs are extracted using pdfplumber (lighter, always available).
+
+```bash
+pip install -e ".[docling]"
+```
+
 ---
 
 ## Your First Scrape
@@ -158,7 +167,7 @@ This will:
 1. Search DuckDuckGo News for each query (up to 20 results per query)
 2. Fetch each result page asynchronously with browser fingerprint rotation
 3. Check robots.txt before fetching (respects site preferences)
-4. Extract clean text using trafilatura (HTML) or pdfplumber (PDFs)
+4. Extract clean text using trafilatura (HTML) or pdfplumber/Docling (PDFs)
 5. Deduplicate by URL and content hash
 6. Save results to a timestamped Parquet file in `./runs/`
 
@@ -564,6 +573,120 @@ financial-scraper --queries-file queries.txt --use-tor --stealth --resume --outp
 
 ---
 
+## URL Deep-Crawl (`crawl` subcommand)
+
+The `crawl` subcommand provides a different mode of operation: instead of searching DDG for queries, it takes a file of seed URLs and deep-crawls each one using crawl4ai's headless browser.
+
+### When to use `crawl` vs `search`
+
+| Use case | Subcommand |
+|----------|------------|
+| Discover content from keyword queries | `search` |
+| Crawl specific domains/pages you already know | `crawl` |
+| JS-rendered sites that block simple HTTP fetches | `crawl` |
+| Follow internal links on a corporate site | `crawl` |
+| Broad financial news gathering | `search` |
+
+### Installation
+
+The crawl subcommand requires crawl4ai as an optional dependency:
+
+```bash
+pip install -e ".[crawl]"
+```
+
+### Seed URL file format
+
+Create a text file with one URL per line. Comments (`#`) and blank lines are skipped:
+
+```text
+# Financial news
+https://reuters.com/business
+https://bloomberg.com/markets
+
+# Company pages
+https://investor.apple.com
+```
+
+### Basic usage
+
+```bash
+financial-scraper crawl --urls-file seed_urls.txt --output-dir ./runs
+```
+
+This will:
+1. Open each seed URL in a headless browser via crawl4ai
+2. Discover internal links using BFS with financial-keyword scoring
+3. Crawl up to `--max-pages` pages per seed, up to `--max-depth` levels deep
+4. Extract content using trafilatura (HTML) or pdfplumber/Docling (PDFs detected by URL or content-type)
+5. Deduplicate and write to Parquet
+
+### Key options
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--max-depth N` | `2` | How many link levels deep to follow |
+| `--max-pages N` | `50` | Max pages discovered per seed URL |
+| `--semaphore-count N` | `2` | Concurrent browser tabs |
+| `--pdf-extractor {auto,docling,pdfplumber}` | `auto` | PDF extraction backend |
+| `--stealth` | off | Reduce concurrency to 1 |
+
+### How scoring works
+
+crawl4ai's BFS expander scores discovered URLs before deciding which to visit next. The crawl pipeline uses a composite scorer with:
+
+- **Financial keyword relevance** (weight 0.8) — URLs containing words like `earnings`, `quarterly`, `report`, `sec`, `filings` score higher
+- **Path depth** (weight 0.3) — shorter paths (closer to site root) are preferred
+- **Freshness** (weight 0.15) — URLs containing the current year score higher
+
+URLs matching common non-content patterns (login, contact, career, legal, privacy, etc.) are filtered out before scoring.
+
+### Output format
+
+The output uses the same Parquet schema as search mode. The `company` field is set to the seed URL's domain (e.g. `reuters.com`), and the `source_file` tag uses the `crawl` prefix:
+
+```
+reuters_com_crawl_2026Q1.parquet
+```
+
+### CrawlConfig fields
+
+| Field | Type | Default | CLI flag |
+|-------|------|---------|----------|
+| `urls_file` | `Path` | `urls.txt` | `--urls-file` |
+| `exclude_file` | `Path\|None` | `None` | `--exclude-file` |
+| `max_depth` | `int` | `2` | `--max-depth` |
+| `max_pages` | `int` | `50` | `--max-pages` |
+| `semaphore_count` | `int` | `2` | `--semaphore-count` |
+| `pdf_extractor` | `str` | `"auto"` | `--pdf-extractor` |
+| `min_word_count` | `int` | `100` | `--min-words` |
+| `check_robots_txt` | `bool` | `True` | `--no-robots` |
+| `stealth` | `bool` | `False` | `--stealth` |
+| `resume` | `bool` | `False` | `--resume` |
+| `checkpoint_file` | `Path` | `.crawl_checkpoint.json` | `--checkpoint` |
+
+### Python API
+
+```python
+import asyncio
+from pathlib import Path
+from financial_scraper.crawl.config import CrawlConfig
+from financial_scraper.crawl.pipeline import CrawlPipeline
+
+config = CrawlConfig(
+    urls_file=Path("seed_urls.txt"),
+    max_depth=2,
+    max_pages=50,
+    output_dir=Path("./runs"),
+    output_path=Path("./runs/crawl_output.parquet"),
+)
+
+pipeline = CrawlPipeline(config)
+asyncio.run(pipeline.run())
+```
+
+---
+
 ## Python API Reference
 
 ### Basic usage
@@ -806,6 +929,12 @@ This tells trafilatura to prefer content in that language. Note: DuckDuckGo resu
 - **Paths:** Use forward slashes or raw strings: `--queries-file queries.txt` or `--queries-file C:/Users/me/queries.txt`
 - **Tor Browser:** Default port is 9150. Make sure it's running before using `--use-tor`.
 - **Script wrapper:** If `financial-scraper` gives "Access is denied", use `python -m financial_scraper` instead.
+- **crawl subcommand (crawl4ai):** crawl4ai's logger uses Unicode characters that can crash on legacy Windows terminals (cp1252). Set `PYTHONUTF8=1` before running:
+  ```bash
+  set PYTHONUTF8=1
+  python -m financial_scraper crawl --urls-file urls.txt --output-dir ./runs
+  ```
+  Or in PowerShell: `$env:PYTHONUTF8="1"`
 
 ### macOS
 
