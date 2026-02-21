@@ -10,6 +10,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pyarrow.parquet as pq
 import pytest
 
+pytest.importorskip("crawl4ai", reason="crawl4ai not installed")
+
 from financial_scraper.crawl.config import CrawlConfig, apply_stealth
 from financial_scraper.crawl.pipeline import CrawlPipeline
 from financial_scraper.main import build_crawl_config, _resolve_output_paths
