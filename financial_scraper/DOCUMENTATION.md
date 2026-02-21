@@ -39,6 +39,10 @@ This package replaces a monolithic 2183-line scraper (`compliant_scraper_v18.py`
 ```
 financial_scraper/
 ├── pyproject.toml                     # Package definition & dependencies
+├── examples/
+│   ├── 01_search_text.ipynb           # Jupyter notebook: text search mode
+│   ├── 02_search_news.ipynb           # Jupyter notebook: news search mode
+│   └── 03_crawl_urls.ipynb            # Jupyter notebook: URL deep-crawl mode
 ├── config/
 │   ├── exclude_domains.txt            # 48 blocked domains (social, video, paywalled, low-quality)
 │   ├── queries_example.txt            # Example query file

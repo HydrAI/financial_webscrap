@@ -84,10 +84,14 @@ docs/RECAP.md
 
 # Scraper run outputs (large, generated)
 financial_scraper/runs/
+financial_scraper/examples/runs_*/
+financial_scraper/examples/queries_*
+financial_scraper/examples/seed_urls_*
 
 # Research (local exploration / experiments)
 research/
 research_2/
+research_3/
 
 # Archive data
 _archive/

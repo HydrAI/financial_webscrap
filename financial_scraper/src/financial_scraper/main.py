@@ -10,6 +10,11 @@ from pathlib import Path
 
 from .config import ScraperConfig
 
+# Default exclude list shipped with the package
+_DEFAULT_EXCLUDE_FILE = (
+    Path(__file__).resolve().parent.parent.parent / "config" / "exclude_domains.txt"
+)
+
 # Logging setup
 logging.basicConfig(
     level=logging.INFO,
@@ -55,6 +60,22 @@ def _resolve_output_paths(
     return out_dir, out_path, jsonl_path, markdown_path
 
 
+def _resolve_exclude_file(args) -> Path | None:
+    """Resolve the exclude file from CLI args.
+
+    Returns None if --no-exclude is set, otherwise resolves the path
+    (defaulting to the built-in exclude_domains.txt).
+    """
+    if getattr(args, "no_exclude", False):
+        return None
+    if args.exclude_file is None:
+        # Use built-in default
+        if _DEFAULT_EXCLUDE_FILE.exists():
+            return _DEFAULT_EXCLUDE_FILE
+        return None
+    return Path(args.exclude_file)
+
+
 def build_config(args) -> ScraperConfig:
     """Build ScraperConfig from CLI args."""
     out_dir, out_path, jsonl_path, markdown_path = _resolve_output_paths(args)
@@ -91,7 +112,7 @@ def build_config(args) -> ScraperConfig:
         output_path=out_path,
         jsonl_path=jsonl_path,
         markdown_path=markdown_path,
-        exclude_file=Path(args.exclude_file) if args.exclude_file else None,
+        exclude_file=_resolve_exclude_file(args),
         checkpoint_file=Path(args.checkpoint),
         resume=args.resume,
         reset_queries=args.reset_queries,
@@ -108,7 +129,7 @@ def build_crawl_config(args):
 
     return CrawlConfig(
         urls_file=Path(args.urls_file),
-        exclude_file=Path(args.exclude_file) if args.exclude_file else None,
+        exclude_file=_resolve_exclude_file(args),
         max_depth=args.max_depth,
         max_pages=args.max_pages,
         semaphore_count=args.semaphore_count,
@@ -174,7 +195,10 @@ def _add_search_args(p: argparse.ArgumentParser):
     # Store
     p.add_argument("--jsonl", action="store_true", help="Also write JSONL output")
     p.add_argument("--markdown", action="store_true", help="Also write Markdown output")
-    p.add_argument("--exclude-file", default=None)
+    p.add_argument("--exclude-file", default=None,
+                   help="Domain exclusion list (default: built-in exclude_domains.txt)")
+    p.add_argument("--no-exclude", action="store_true",
+                   help="Disable domain exclusion filtering entirely")
     p.add_argument("--checkpoint", default=".scraper_checkpoint.json")
     p.add_argument("--resume", action="store_true")
     p.add_argument("--reset", action="store_true", help="Delete checkpoint before running (fresh start)")
@@ -203,7 +227,10 @@ def _add_crawl_args(p: argparse.ArgumentParser):
     # Store
     p.add_argument("--jsonl", action="store_true", help="Also write JSONL output")
     p.add_argument("--markdown", action="store_true", help="Also write Markdown output")
-    p.add_argument("--exclude-file", default=None)
+    p.add_argument("--exclude-file", default=None,
+                   help="Domain exclusion list (default: built-in exclude_domains.txt)")
+    p.add_argument("--no-exclude", action="store_true",
+                   help="Disable domain exclusion filtering entirely")
     p.add_argument("--checkpoint", default=".crawl_checkpoint.json")
     p.add_argument("--resume", action="store_true")
     p.add_argument("--reset", action="store_true", help="Delete checkpoint before running (fresh start)")

@@ -978,6 +978,10 @@ This tells trafilatura to prefer content in that language. Note: DuckDuckGo resu
 
 ## Next Steps
 
+- Run the **[Example Notebooks](../financial_scraper/examples/)** for hands-on walkthroughs of all 3 modes:
+  - [01_search_text.ipynb](../financial_scraper/examples/01_search_text.ipynb) — Text search for broad research content
+  - [02_search_news.ipynb](../financial_scraper/examples/02_search_news.ipynb) — News search for recent financial articles
+  - [03_crawl_urls.ipynb](../financial_scraper/examples/03_crawl_urls.ipynb) — Deep-crawl specific URLs with headless browser
 - See the **[CLI Cookbook](cli-examples.md)** for copy-paste commands covering every query file and use case
 - Browse [example query files](examples/) for ready-to-use queries
 - Read [ethical-scraping.md](ethical-scraping.md) to understand the rate-limiting strategy
