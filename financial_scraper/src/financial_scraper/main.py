@@ -279,6 +279,78 @@ def _run_crawl(args):
     asyncio.run(pipeline.run())
 
 
+def build_transcript_config(args):
+    """Build TranscriptConfig from CLI args."""
+    from .transcripts.config import TranscriptConfig
+
+    ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+    base = Path(args.output_dir) if args.output_dir else Path(".")
+    out_dir = base / ts
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    out_path = out_dir / f"transcripts_{ts}.parquet"
+    jsonl_path = out_dir / f"transcripts_{ts}.jsonl" if args.jsonl else None
+
+    tickers = tuple(t.upper() for t in args.tickers) if args.tickers else ()
+    quarters = tuple(args.quarters) if args.quarters else ()
+
+    return TranscriptConfig(
+        tickers=tickers,
+        tickers_file=Path(args.tickers_file) if args.tickers_file else None,
+        year=args.year,
+        quarters=quarters,
+        concurrent=args.concurrent,
+        output_dir=out_dir,
+        output_path=out_path,
+        jsonl_path=jsonl_path,
+        checkpoint_file=Path(args.checkpoint),
+        resume=args.resume,
+    )
+
+
+def _add_transcript_args(p: argparse.ArgumentParser):
+    """Add arguments for the transcripts subcommand."""
+    # Input (at least one required)
+    p.add_argument("--tickers", nargs="+", help="Ticker symbols (e.g. AAPL MSFT NVDA)")
+    p.add_argument("--tickers-file", default=None, help="File with tickers (one per line)")
+
+    # Filters
+    p.add_argument("--year", type=int, default=None, help="Fiscal year (default: current year)")
+    p.add_argument("--quarters", nargs="+", choices=["Q1", "Q2", "Q3", "Q4"],
+                   help="Filter to specific quarters")
+
+    # Fetch
+    p.add_argument("--concurrent", type=int, default=5)
+
+    # Store
+    p.add_argument("--output-dir", default=None, help="Base dir for output (default: cwd)")
+    p.add_argument("--jsonl", action="store_true", help="Also write JSONL output")
+    p.add_argument("--checkpoint", default=".transcript_checkpoint.json")
+    p.add_argument("--resume", action="store_true")
+    p.add_argument("--reset", action="store_true", help="Delete checkpoint before running")
+
+
+def _run_transcripts(args):
+    """Run the transcripts pipeline."""
+    from .transcripts.pipeline import TranscriptPipeline
+
+    if not args.tickers and not args.tickers_file:
+        logger = logging.getLogger(__name__)
+        logger.error("Must provide --tickers or --tickers-file")
+        sys.exit(1)
+
+    # Handle --reset
+    if args.reset:
+        cp = Path(args.checkpoint)
+        if cp.exists():
+            cp.unlink()
+            logging.getLogger(__name__).info(f"Checkpoint reset: deleted {cp}")
+
+    config = build_transcript_config(args)
+    pipeline = TranscriptPipeline(config)
+    pipeline.run()
+
+
 def main():
     p = argparse.ArgumentParser(
         description="Financial Web Scraper - search or deep-crawl modes",
@@ -297,10 +369,16 @@ def main():
     )
     _add_crawl_args(crawl_parser)
 
+    # "transcripts" subcommand
+    transcript_parser = subparsers.add_parser(
+        "transcripts", help="Download earnings call transcripts from Motley Fool"
+    )
+    _add_transcript_args(transcript_parser)
+
     # For backward compatibility: if no subcommand, treat all args as search
     # We detect this by checking if any known search-only args are present
     argv = sys.argv[1:]
-    if argv and argv[0] not in ("search", "crawl", "-h", "--help"):
+    if argv and argv[0] not in ("search", "crawl", "transcripts", "-h", "--help"):
         # No subcommand given — prepend "search" for backward compat
         argv = ["search"] + argv
 
@@ -314,6 +392,8 @@ def main():
 
     if args.command == "crawl":
         _run_crawl(args)
+    elif args.command == "transcripts":
+        _run_transcripts(args)
     else:
         _run_search(args)
 
