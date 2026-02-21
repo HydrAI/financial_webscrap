@@ -663,3 +663,120 @@ class TestGetPdfExtractor:
                 pdf_mod.get_pdf_extractor("docling")
         finally:
             pdf_mod.DOCLING_AVAILABLE = original
+
+
+# ---------------------------------------------------------------------------
+# PDF Date Extraction
+# ---------------------------------------------------------------------------
+
+class TestExtractContentDate:
+    def test_day_month_year(self):
+        from financial_scraper.extract.pdf import _extract_content_date
+        text = "Report for the period ending 31 December 2024 stuff"
+        dt = _extract_content_date(text)
+        assert dt is not None
+        assert dt.year == 2024 and dt.month == 12 and dt.day == 31
+
+    def test_month_year_only(self):
+        from financial_scraper.extract.pdf import _extract_content_date
+        text = "Published October 2025 by The Asia Group"
+        dt = _extract_content_date(text)
+        assert dt is not None
+        assert dt.year == 2025 and dt.month == 10
+
+    def test_iso_date(self):
+        from financial_scraper.extract.pdf import _extract_content_date
+        text = "Date: 2026-01-27 some content"
+        dt = _extract_content_date(text)
+        assert dt is not None
+        assert dt.year == 2026 and dt.month == 1 and dt.day == 27
+
+    def test_slash_date(self):
+        from financial_scraper.extract.pdf import _extract_content_date
+        text = "Filed on 15/06/2025 with ASIC"
+        dt = _extract_content_date(text)
+        assert dt is not None
+        assert dt.year == 2025 and dt.month == 6 and dt.day == 15
+
+    def test_no_date_returns_none(self):
+        from financial_scraper.extract.pdf import _extract_content_date
+        text = "No dates in this text at all just words"
+        assert _extract_content_date(text) is None
+
+    def test_respects_max_chars(self):
+        from financial_scraper.extract.pdf import _extract_content_date
+        # Date is beyond the 500-char window
+        text = "x" * 501 + "27 January 2026"
+        assert _extract_content_date(text, max_chars=500) is None
+        assert _extract_content_date(text, max_chars=600) is not None
+
+
+class TestExtractMetadataDate:
+    def test_reads_creation_date(self):
+        from financial_scraper.extract.pdf import _extract_metadata_date
+        # Minimal valid PDF with a CreationDate in the Info dict
+        pdf_bytes = (
+            b"%PDF-1.0\n"
+            b"1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj\n"
+            b"2 0 obj<</Type/Pages/Kids[3 0 R]/Count 1>>endobj\n"
+            b"3 0 obj<</Type/Page/MediaBox[0 0 612 792]/Parent 2 0 R>>endobj\n"
+            b"4 0 obj<</CreationDate(D:20250224120000)>>endobj\n"
+            b"xref\n0 5\n"
+            b"0000000000 65535 f \n"
+            b"0000000009 00000 n \n"
+            b"0000000058 00000 n \n"
+            b"0000000115 00000 n \n"
+            b"0000000190 00000 n \n"
+            b"trailer<</Size 5/Root 1 0 R/Info 4 0 R>>\n"
+            b"startxref\n243\n%%EOF"
+        )
+        dt = _extract_metadata_date(pdf_bytes)
+        assert dt is not None
+        assert dt.year == 2025 and dt.month == 2 and dt.day == 24
+
+    def test_invalid_pdf_returns_none(self):
+        from financial_scraper.extract.pdf import _extract_metadata_date
+        assert _extract_metadata_date(b"not a pdf") is None
+
+
+class TestExtractPdfDate:
+    def test_takes_latest_date(self):
+        from financial_scraper.extract.pdf import extract_pdf_date
+        # Mock: content has Dec 2024, metadata has Feb 2025
+        # Should return Feb 2025 (the latest)
+        with patch("financial_scraper.extract.pdf._extract_content_date") as mock_content, \
+             patch("financial_scraper.extract.pdf._extract_metadata_date") as mock_meta:
+            from datetime import datetime
+            mock_content.return_value = datetime(2024, 12, 31)
+            mock_meta.return_value = datetime(2025, 2, 24)
+            result = extract_pdf_date(b"fake", "some text")
+            assert result == "2025-02-24"
+
+    def test_content_only(self):
+        from financial_scraper.extract.pdf import extract_pdf_date
+        with patch("financial_scraper.extract.pdf._extract_content_date") as mock_content, \
+             patch("financial_scraper.extract.pdf._extract_metadata_date") as mock_meta:
+            from datetime import datetime
+            mock_content.return_value = datetime(2025, 10, 21)
+            mock_meta.return_value = None
+            result = extract_pdf_date(b"fake", "some text")
+            assert result == "2025-10-21"
+
+    def test_metadata_only(self):
+        from financial_scraper.extract.pdf import extract_pdf_date
+        with patch("financial_scraper.extract.pdf._extract_content_date") as mock_content, \
+             patch("financial_scraper.extract.pdf._extract_metadata_date") as mock_meta:
+            from datetime import datetime
+            mock_content.return_value = None
+            mock_meta.return_value = datetime(2025, 7, 29)
+            result = extract_pdf_date(b"fake", "some text")
+            assert result == "2025-07-29"
+
+    def test_no_dates_returns_none(self):
+        from financial_scraper.extract.pdf import extract_pdf_date
+        with patch("financial_scraper.extract.pdf._extract_content_date") as mock_content, \
+             patch("financial_scraper.extract.pdf._extract_metadata_date") as mock_meta:
+            mock_content.return_value = None
+            mock_meta.return_value = None
+            result = extract_pdf_date(b"fake", "some text")
+            assert result is None
