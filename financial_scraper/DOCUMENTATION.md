@@ -64,18 +64,23 @@ financial_scraper/
 │   │   ├── throttle.py                # Per-domain adaptive rate limiter
 │   │   ├── robots.py                  # robots.txt compliance
 │   │   └── tor.py                     # Tor SOCKS5 proxy + circuit renewal
+│   ├── crawl/
+│   │   ├── __init__.py
+│   │   ├── config.py                  # CrawlConfig frozen dataclass
+│   │   ├── pipeline.py                # CrawlPipeline: BFS crawl orchestrator
+│   │   └── strategy.py                # URL scoring (financial keywords, path depth, freshness)
 │   ├── extract/
 │   │   ├── __init__.py
 │   │   ├── html.py                    # trafilatura two-pass extraction
-│   │   ├── pdf.py                     # pdfplumber extraction
+│   │   ├── pdf.py                     # pdfplumber/Docling extraction + get_pdf_extractor()
 │   │   ├── clean.py                   # Boilerplate removal + content-type filtering
 │   │   ├── date_filter.py             # Post-extraction date range filtering
 │   │   └── links.py                   # BFS link extraction + same-domain filtering
 │   └── store/
 │       ├── __init__.py
-│       ├── dedup.py                   # URL + content SHA256 deduplication
+│       ├── dedup.py                   # URL + content SHA256 + MinHash LSH fuzzy deduplication
 │       └── output.py                  # Parquet/JSONL writers (merged_by_year schema)
-└── tests/                             # (placeholder for future unit tests)
+└── tests/                             # 332 tests (pytest)
 ```
 
 ### Data Flow
@@ -117,7 +122,7 @@ queries.txt
          ▼
 ┌─────────────────┐
 │  DateFilter      │  Optional date range filtering
-│  + Content Dedup │  SHA256 of first 2000 chars
+│  + Content Dedup │  SHA256 exact + MinHash LSH fuzzy
 └────────┬────────┘
          │ Final records
          ▼
@@ -154,6 +159,7 @@ This installs the package in editable mode with all dependencies:
 | chardet | >=5.0 | Character encoding detection |
 | tenacity | >=8.0 | Retry logic |
 | stem | >=1.8 | Tor control protocol |
+| datasketch | >=1.6 | MinHash LSH near-duplicate detection |
 
 ---
 
@@ -417,7 +423,11 @@ Each profile includes: User-Agent, Accept, Accept-Language, Accept-Encoding, Sec
 
 **Purpose**: Extract text from PDF response bytes.
 
-**Implementation**: pdfplumber page-by-page text extraction with metadata (title) from PDF properties.
+**Implementation**: Dispatches between two backends via `get_pdf_extractor()`:
+- **pdfplumber** (default): Page-by-page text extraction with metadata (title) from PDF properties. Lightweight, always available.
+- **Docling** (`--pdf-extractor docling`): Layout-aware extraction with table detection and hierarchical structure. Better for complex PDFs (SEC filings, annual reports). Requires `pip install -e ".[docling]"`.
+
+The `auto` mode (default) uses Docling if installed, falling back to pdfplumber.
 
 ### 6.9 `extract/clean.py` - TextCleaner
 
@@ -455,7 +465,36 @@ Both filters are called by the pipeline after extraction to reject non-article p
 
 **Asset extensions skipped**: `.jpg`, `.jpeg`, `.png`, `.gif`, `.svg`, `.ico`, `.webp`, `.bmp`, `.css`, `.js`, `.woff`, `.woff2`, `.ttf`, `.eot`, `.mp3`, `.mp4`, `.avi`, `.mov`, `.wmv`, `.flv`, `.zip`, `.gz`, `.tar`, `.rar`, `.7z`, `.exe`, `.dmg`, `.msi`
 
-### 6.11 `extract/date_filter.py` - DateFilter
+### 6.11 `crawl/config.py` - CrawlConfig
+
+**Purpose**: Configuration for the crawl subcommand as a frozen dataclass.
+
+**Key fields**: `urls_file`, `max_depth`, `max_pages`, `semaphore_count`, `pdf_extractor` (`auto`/`docling`/`pdfplumber`), `min_word_count`, `check_robots_txt`, `stealth`, `resume`, `checkpoint_file`, `output_dir`, `output_path`.
+
+### 6.12 `crawl/pipeline.py` - CrawlPipeline
+
+**Purpose**: BFS crawl orchestrator using crawl4ai's `AsyncWebCrawler` + `BestFirstCrawlingStrategy`.
+
+**Key features**:
+- PDF detection by URL extension (`.pdf`) and `Content-Type` header — checked before crawl4ai success status
+- Direct PDF download with browser-style headers (User-Agent, Accept, Referer) and `Accept-Encoding: gzip, deflate` to prevent Brotli decoding errors
+- Dispatches to Docling or pdfplumber via `get_pdf_extractor()`
+- PDF date extraction: `max(content_regex, metadata)` for most accurate release date
+- Resume/checkpoint support with atomic JSON saves
+- Parquet + JSONL output with merged_by_year schema
+
+### 6.13 `crawl/strategy.py` - URL Scoring
+
+**Purpose**: Financial keyword scoring for BFS URL prioritization.
+
+**Scoring components**:
+- Financial keyword relevance (weight 0.8) — URLs containing `earnings`, `quarterly`, `report`, `sec`, `filings`, etc.
+- Path depth (weight 0.3) — shorter paths (closer to site root) preferred
+- Freshness (weight 0.15) — URLs containing the current year score higher
+
+**Filtering**: Non-content URLs (login, contact, career, legal, privacy, etc.) are filtered before scoring.
+
+### 6.14 `extract/date_filter.py` - DateFilter
 
 **Purpose**: Post-extraction filtering by publication date range.
 
@@ -463,16 +502,37 @@ Both filters are called by the pipeline after extraction to reject non-article p
 
 **Policy**: Pages without dates are kept (permissive). Only pages with parseable dates outside the range are filtered out.
 
-### 6.11 `store/dedup.py` - Deduplicator
+### 6.15 `store/dedup.py` - Deduplicator
 
-**Purpose**: Prevent duplicate pages by URL and content.
+**Purpose**: Prevent duplicate pages by URL and content (exact and near-duplicate).
 
-**Implementation**:
+**Implementation** (two-layer content dedup):
+- **Layer 1 — Exact dedup**: SHA256 of first 2000 characters. O(1) lookup, catches identical content instantly.
+- **Layer 2 — Fuzzy dedup** (MinHash LSH): Runs only when exact check passes. Detects near-duplicates like syndicated news rewrites (same article republished across sites with minor edits, different headers, added disclaimers).
 - URL: normalize (defrag, lowercase, strip trailing slash) then SHA256
-- Content: SHA256 of first 2000 characters
-- In-memory sets with optional save/load to JSON
+- In-memory sets + LSH index with save/load to JSON
 
-### 6.12 `store/output.py` - ParquetWriter / JSONLWriter
+**Fuzzy dedup details**:
+
+| Parameter | Value | Rationale |
+|-----------|-------|-----------|
+| `num_perm` | 128 | Standard accuracy/memory tradeoff |
+| LSH threshold | 0.85 | Catches syndicated rewrites, avoids false positives on same-topic articles |
+| Shingle size | 3 words | Word-level 3-grams capture phrase-level similarity; financial articles share boilerplate but differ in entity names |
+
+**Graceful degradation**: If `datasketch` is not installed, fuzzy dedup is silently disabled — exact dedup still works.
+
+**Persistence format** (inside existing JSON):
+```json
+{
+  "urls": ["sha256..."],
+  "content": ["sha256..."],
+  "minhash": {"0": "hex_digest...", "1": "hex_digest..."}
+}
+```
+On load, MinHash objects are reconstructed from hex digests and re-inserted into a fresh LSH index.
+
+### 6.16 `store/output.py` - ParquetWriter / JSONLWriter
 
 **Purpose**: Write results in merged_by_year-compatible Parquet.
 
@@ -487,7 +547,7 @@ Both filters are called by the pipeline after extraction to reject non-article p
 - Simple append-mode JSON Lines
 - UTF-8, no ASCII escaping
 
-### 6.13 `checkpoint.py` - Checkpoint
+### 6.17 `checkpoint.py` - Checkpoint
 
 **Purpose**: Resume interrupted scrape sessions.
 
@@ -503,7 +563,7 @@ Both filters are called by the pipeline after extraction to reject non-article p
 - `--reset`: Deletes the checkpoint file entirely before running (full fresh start)
 - `--reset-queries`: Clears completed queries and stats but keeps fetched/failed URL history. Re-runs all queries while avoiding re-fetching the same URLs. Requires `--resume` to load the checkpoint first.
 
-### 6.14 `pipeline.py` - ScraperPipeline
+### 6.18 `pipeline.py` - ScraperPipeline
 
 **Purpose**: Main orchestrator wiring all modules together.
 
@@ -520,7 +580,7 @@ Both filters are called by the pipeline after extraction to reject non-article p
 5. Checkpoint save (atomic)
 6. Print summary
 
-### 6.15 `config.py` - ScraperConfig
+### 6.19 `config.py` - ScraperConfig
 
 **Purpose**: Centralized configuration as frozen dataclass.
 
@@ -530,13 +590,13 @@ Both filters are called by the pipeline after extraction to reject non-article p
 - `search_delay_min`: 3.0 -> 5.0
 - `search_delay_max`: 6.0 -> 8.0
 
-### 6.16 `__main__.py` - Module Runner
+### 6.20 `__main__.py` - Module Runner
 
 **Purpose**: Enable `python -m financial_scraper` invocation.
 
 Delegates to `main.main()`. Required because the package uses a `src/` layout,without this file, `python -m` fails with "No module named financial_scraper.__main__".
 
-### 6.17 `main.py` - CLI Entry Point
+### 6.21 `main.py` - CLI Entry Point
 
 **Purpose**: Parse CLI arguments and launch pipeline.
 
@@ -755,6 +815,28 @@ Analysis of 1,923 merged articles from two scrape runs (Feb 18-19) revealed that
 5. **Domain exclusions** (`config/exclude_domains.txt`): Added 8 domains with >50% bad content rate: `caixinglobal.com` (100% paywall), `cnbc.com` (89% ticker pages), `theglobeandmail.com` (88% TipRanks blurbs), `nature.com` (84% non-financial), `bloomberg.com` (82% paywall), `zawya.com` (53% truncated), `scmp.com`, `law.com`. Total excluded domains: 48.
 
 **Impact**: In future scrapes, ~466 low-value articles per run will be blocked at domain level, ~32 ticker pages and ~32 Nature Index pages caught by post-extraction filter, and remaining articles have cleaner text.
+
+### Phase 8: Crawl Subcommand (2026-02-20/21)
+
+Added a standalone `crawl` subcommand that deep-crawls seed URLs using crawl4ai's headless browser with BFS financial-keyword scoring. Key features:
+
+1. **crawl4ai integration** (`crawl/pipeline.py`, `crawl/strategy.py`): `AsyncWebCrawler` + `BestFirstCrawlingStrategy` with financial keyword scoring (weight 0.8), path depth (0.3), and freshness (0.15). Non-content URL filtering.
+
+2. **Docling PDF extraction** (`extract/pdf.py`): Added `get_pdf_extractor()` dispatch between pdfplumber and Docling. Docling provides layout-aware table detection for complex PDFs (SEC filings, annual reports). Auto mode uses Docling if installed.
+
+3. **PDF date extraction** (`crawl/pipeline.py`): Extracts dates from both PDF content (regex patterns) and PDF metadata, takes `max()` for the most accurate release date.
+
+4. **PDF detection fix**: Check URL extension and `Content-Type` header for PDFs before checking crawl4ai success status, since crawl4ai marks PDF responses as failures.
+
+5. **Browser headers for PDF downloads**: Direct PDF downloads use User-Agent, Accept, and Referer headers to avoid 403s.
+
+6. **Accept-Encoding fix**: Send `Accept-Encoding: gzip, deflate` instead of allowing Brotli, which aiohttp can't decode without the optional `brotli` package.
+
+7. **CrawlConfig** (`crawl/config.py`): Frozen dataclass with fields for urls_file, max_depth, max_pages, semaphore_count, pdf_extractor, etc.
+
+8. **Resume/checkpoint**: Crawl sessions support checkpoint/resume with atomic JSON saves.
+
+9. **53 new tests** for crawl pipeline, bringing the total to 327.
 
 ### Errors Fixed During Development
 

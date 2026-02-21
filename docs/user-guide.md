@@ -168,7 +168,7 @@ This will:
 2. Fetch each result page asynchronously with browser fingerprint rotation
 3. Check robots.txt before fetching (respects site preferences)
 4. Extract clean text using trafilatura (HTML) or pdfplumber/Docling (PDFs)
-5. Deduplicate by URL and content hash
+5. Deduplicate by URL, content hash, and fuzzy near-duplicate detection (MinHash LSH)
 6. Save results to a timestamped Parquet file in `./runs/`
 
 ### Step 3: What to expect
@@ -272,7 +272,7 @@ When `--jsonl` is enabled, each line is a JSON object with the same fields as th
 | 50 | 20 | 400-600 | 10-30 MB |
 | 300 | 20 | 2,000-4,000 | 50-150 MB |
 
-Row count is lower than `queries × results` because of fetch failures, deduplication, and minimum word count filtering.
+Row count is lower than `queries × results` because of fetch failures, deduplication (exact + fuzzy near-duplicate detection), and minimum word count filtering.
 
 ---
 
@@ -940,6 +940,12 @@ This tells trafilatura to prefer content in that language. Note: DuckDuckGo resu
 - All extracted texts were below `--min-words` (default: 100),try `--min-words 50`
 - All results were duplicates of previously seen content
 - Date filter (`--date-from`/`--date-to`) excluded everything,broaden the range or remove the filter
+
+### PDF download fails with content encoding error
+
+**Cause:** The server responds with Brotli compression, which aiohttp cannot decode without the optional `brotli` Python package.
+
+**Fix:** This is already handled in the crawl pipeline — it sends `Accept-Encoding: gzip, deflate` to avoid Brotli responses. If you see this error in a custom setup, either install `pip install brotli` or add the `Accept-Encoding: gzip, deflate` header to your requests manually.
 
 ---
 

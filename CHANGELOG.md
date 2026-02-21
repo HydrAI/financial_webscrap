@@ -5,6 +5,40 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.1] - 2026-02-21
+
+### Added
+
+- **MinHash LSH fuzzy deduplication**: Near-duplicate content detection using MinHash with Locality-Sensitive Hashing (128 permutations, 0.85 Jaccard threshold, 3-word shingles). Catches syndicated news rewrites — same article republished across sites with minor edits, different headers, or added disclaimers. Runs as a second layer on top of existing SHA256 exact dedup.
+- `datasketch>=1.6` added to dependencies
+- Graceful degradation: fuzzy dedup silently disabled if `datasketch` not installed
+- MinHash state persisted in dedup JSON (hex-encoded digests), restored on load
+- 5 new tests for fuzzy dedup (332 total)
+
+### Changed
+
+- `store/dedup.py` now uses two-layer content dedup: SHA256 exact check (O(1)) then MinHash LSH fuzzy check
+- Updated DOCUMENTATION.md, user-guide.md with fuzzy dedup details
+
+## [0.3.0] - 2026-02-21
+
+### Added
+
+- `crawl` subcommand with crawl4ai headless browser, BFS financial-keyword scoring, seed URL files
+- Docling PDF extraction backend (`--pdf-extractor docling`) with layout-aware table detection
+- PDF date extraction: `max(content_regex, metadata)` for most accurate release date
+- PDF detection before crawl4ai success check — catches PDFs by URL extension/content-type header
+- Browser-style headers for direct PDF downloads (User-Agent, Accept, Referer)
+- `Accept-Encoding: gzip, deflate` header to prevent Brotli decoding errors on PDF downloads
+- `CrawlConfig` frozen dataclass, `CrawlPipeline`, `BestFirstCrawlingStrategy` integration
+- Resume/checkpoint support for crawl sessions
+- 53 new tests for crawl pipeline (327 total)
+
+### Changed
+
+- `extract/pdf.py` now dispatches between pdfplumber and Docling via `get_pdf_extractor()`
+- Updated README, user-guide, cli-examples, architecture docs with crawl subcommand reference
+
 ## [0.2.2] - 2026-02-19
 
 ### Added

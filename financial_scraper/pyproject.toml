@@ -39,6 +39,7 @@ dependencies = [
     "chardet>=5.0",
     "tenacity>=8.0",
     "stem>=1.8",
+    "datasketch>=1.6",
 ]
 
 [project.optional-dependencies]
