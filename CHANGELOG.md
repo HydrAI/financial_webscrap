@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.2] - 2026-02-21
+
+### Added
+
+- **Example notebooks** (`examples/`): 3 Jupyter notebooks with detailed walkthroughs for all scraper modes — text search, news search, and URL deep-crawl. Each includes config, run, result analysis, and CLI equivalents.
+- **Default domain exclusion**: `--exclude-file` now defaults to the built-in `config/exclude_domains.txt` (previously required explicit flag every run)
+- `--no-exclude` CLI flag to disable domain filtering entirely
+
+### Changed
+
+- Updated DOCUMENTATION.md architecture tree with `examples/` directory
+- Updated user-guide.md Next Steps with notebook links
+- Removed `.gitignore` from tracked files (local-only)
+
 ## [0.3.1] - 2026-02-21
 
 ### Added
