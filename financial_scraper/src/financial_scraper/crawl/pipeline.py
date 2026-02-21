@@ -131,17 +131,6 @@ class CrawlPipeline:
                 for cr in results:
                     url = cr.url
 
-                    # Skip failed pages
-                    if not cr.success:
-                        logger.debug(
-                            f"  Skipped (success=False): {url} "
-                            f"status={getattr(cr, 'status_code', '?')} "
-                            f"error={getattr(cr, 'error_message', '')}"
-                        )
-                        total_failed += 1
-                        self._checkpoint.mark_url_failed(url)
-                        continue
-
                     # Skip already-processed URLs
                     if self._checkpoint.is_url_fetched(url):
                         continue
@@ -152,8 +141,11 @@ class CrawlPipeline:
                         continue
 
                     # PDF vs HTML extraction
+                    # Check PDF first: crawl4ai can't render PDFs, so cr.success
+                    # will be False for PDF URLs — we download them directly.
                     response_headers = getattr(cr, "response_headers", None) or {}
                     if self._is_pdf(url, response_headers):
+                        logger.info(f"  PDF detected: {url}")
                         pdf_bytes = await self._download_pdf_bytes(url)
                         if not pdf_bytes:
                             total_failed += 1
@@ -162,6 +154,16 @@ class CrawlPipeline:
                             self._pdf_extractor.extract, pdf_bytes, url
                         )
                     else:
+                        # HTML path: check crawl4ai success
+                        if not cr.success:
+                            logger.debug(
+                                f"  Skipped (success=False): {url} "
+                                f"status={getattr(cr, 'status_code', '?')} "
+                                f"error={getattr(cr, 'error_message', '')}"
+                            )
+                            total_failed += 1
+                            self._checkpoint.mark_url_failed(url)
+                            continue
                         html = cr.html or ""
                         if not html:
                             total_failed += 1
@@ -329,9 +331,19 @@ class CrawlPipeline:
         return False
 
     async def _download_pdf_bytes(self, url: str, timeout: int = 30) -> bytes | None:
-        """Download PDF bytes directly via aiohttp."""
+        """Download PDF bytes directly via aiohttp with browser-like headers."""
+        headers = {
+            "User-Agent": (
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) "
+                "Chrome/131.0.0.0 Safari/537.36"
+            ),
+            "Accept": "application/pdf,*/*",
+            "Accept-Language": "en-US,en;q=0.9",
+            "Referer": url,
+        }
         try:
-            async with aiohttp.ClientSession() as session:
+            async with aiohttp.ClientSession(headers=headers) as session:
                 async with session.get(
                     url, timeout=aiohttp.ClientTimeout(total=timeout)
                 ) as resp:
