@@ -32,7 +32,7 @@ flowchart LR
 graph TB
     subgraph CLI["&nbsp; 🖥️ CLI Layer &nbsp;"]
         direction LR
-        main["<b>main.py</b>\nargparse subcommands\nsearch · crawl"]
+        main["<b>main.py</b>\nargparse subcommands\nsearch · crawl · transcripts"]
         dunder_main["<b>__main__.py</b>\npython -m entry point"]
     end
 
@@ -64,13 +64,13 @@ graph TB
     subgraph Extract_mod["&nbsp; 📝 extract/ &nbsp;"]
         html["<b>html.py</b>\ntrafilatura 2-pass\nprecision → fallback"]
         pdf["<b>pdf.py</b>\npdfplumber · Docling\nPDF text extraction"]
-        clean["<b>clean.py</b>\n24 regex patterns\nboilerplate + content-type filter"]
+        clean["<b>clean.py</b>\n24+ regex patterns\nboilerplate + content-type filter"]
         date_filter["<b>date_filter.py</b>\nYYYY-MM-DD range\npost-extraction filter"]
         links["<b>links.py</b>\nBFS link extraction\nsame-domain filter"]
     end
 
     subgraph Store_mod["&nbsp; 💾 store/ &nbsp;"]
-        dedup["<b>dedup.py</b>\nURL normalization\nSHA256 content hash"]
+        dedup["<b>dedup.py</b>\nURL normalization\nSHA256 + MinHash LSH"]
         output["<b>output.py</b>\nParquet snappy append\nJSONL writer"]
     end
 
@@ -102,6 +102,21 @@ graph TB
     crawl_pipeline --> output
     crawl_pipeline --> checkpoint
 
+    subgraph Transcript_mod["&nbsp; 📞 transcripts/ &nbsp;"]
+        transcript_config["<b>config.py</b>\nTranscriptConfig\nfrozen dataclass"]
+        transcript_pipeline["<b>pipeline.py</b>\nTranscriptPipeline\ndiscover → fetch → extract → store"]
+        transcript_discovery["<b>discovery.py</b>\nSitemap-based\nURL discovery"]
+        transcript_extract["<b>extract.py</b>\nHTML transcript\nextraction"]
+    end
+
+    main ==> transcript_pipeline
+    transcript_pipeline --> transcript_config
+    transcript_pipeline --> transcript_discovery
+    transcript_pipeline --> transcript_extract
+    transcript_pipeline --> dedup
+    transcript_pipeline --> output
+    transcript_pipeline --> checkpoint
+
     classDef cliStyle fill:#f8f9fa,stroke:#6c757d,stroke-width:2px
     classDef coreStyle fill:#e8f4fd,stroke:#4a90d9,stroke-width:2px
     classDef searchStyle fill:#fff3e0,stroke:#f5a623,stroke-width:2px
@@ -117,6 +132,8 @@ graph TB
     class html,pdf,clean,date_filter,links extractStyle
     class dedup,output storeStyle
     class crawl_config,crawl_pipeline,crawl_strategy crawlStyle
+    classDef transcriptStyle fill:#fff9c4,stroke:#f9a825,stroke-width:2px
+    class transcript_config,transcript_pipeline,transcript_discovery,transcript_extract transcriptStyle
 
     style CLI fill:#f8f9fa,stroke:#6c757d,stroke-width:2px,stroke-dasharray: 0
     style Core fill:#e8f4fd,stroke:#4a90d9,stroke-width:2px,stroke-dasharray: 0
@@ -125,6 +142,7 @@ graph TB
     style Extract_mod fill:#e8f5e9,stroke:#50c878,stroke-width:2px,stroke-dasharray: 0
     style Store_mod fill:#fce4ec,stroke:#e74c3c,stroke-width:2px,stroke-dasharray: 0
     style Crawl_mod fill:#e0f7fa,stroke:#00838f,stroke-width:2px,stroke-dasharray: 0
+    style Transcript_mod fill:#fff9c4,stroke:#f9a825,stroke-width:2px,stroke-dasharray: 0
 ```
 
 ## Data Flow
@@ -257,7 +275,7 @@ flowchart TD
 
     PDF --> CLEAN
 
-    CLEAN["🧹 Regex Cleanup\n10 boilerplate patterns\nnavigation, cookies, ads"]:::grey --> WORDS{"Word count\n≥ min_words?"}:::decision
+    CLEAN["🧹 Regex Cleanup\n24+ boilerplate patterns\nnavigation, cookies, ads, promos"]:::grey --> WORDS{"Word count\n≥ min_words?"}:::decision
     WORDS -->|"Yes"| DATE["📅 Date Filter\ncheck against\ndate_from / date_to"]:::blue
     WORDS -->|"No"| DISCARD(["❌ Discarded"]):::red
 

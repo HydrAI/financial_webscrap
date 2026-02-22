@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.0] - 2026-02-21
+
+### Added
+
+- **Earnings call transcript downloader** (`transcripts` subcommand): Downloads and extracts structured earnings call transcripts from Motley Fool. Discovers transcript URLs via monthly XML sitemaps, extracts metadata (company, ticker, quarter, year), speakers, prepared remarks, and Q&A sections. Outputs to Parquet in `merged_by_year` schema.
+- `transcripts/discovery.py`: Sitemap-based URL discovery — scans `fool.com/sitemap/YYYY/MM` monthly sitemaps, filters by ticker/year/quarter via URL slug regex
+- `transcripts/extract.py`: HTML extraction — parses JSON-LD metadata, article-body sections (DATE, CALL PARTICIPANTS, Full Conference Call Transcript), speaker detection regex, Q&A split
+- `transcripts/pipeline.py`: `TranscriptPipeline` orchestrator — load tickers, discover, fetch, extract, dedup, write Parquet/JSONL with checkpoint/resume support
+- `transcripts/config.py`: `TranscriptConfig` frozen dataclass with tickers, year, quarters, concurrent, output paths
+- CLI: `--tickers`, `--tickers-file`, `--year`, `--quarters`, `--jsonl`, `--checkpoint`, `--resume`, `--reset`
+- 18 new tests for transcripts module (350 total)
+
 ## [0.3.2] - 2026-02-21
 
 ### Added

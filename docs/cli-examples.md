@@ -248,6 +248,38 @@ financial-scraper crawl --urls-file seed_pdfs.txt --max-depth 1 --pdf-extractor 
 
 ---
 
+## Earnings Transcripts (`transcripts` subcommand)
+
+Download structured earnings call transcripts from Motley Fool by ticker symbol. Discovers URLs via monthly sitemaps, extracts speakers, prepared remarks, and Q&A sections.
+
+### Single ticker, all quarters
+
+```bash
+financial-scraper transcripts --tickers AAPL --year 2025 --output-dir ./runs
+```
+
+### Multiple tickers, specific quarters
+
+```bash
+financial-scraper transcripts --tickers AAPL MSFT NVDA --quarters Q1 Q4 --output-dir ./runs --jsonl
+```
+
+### From a ticker file
+
+```bash
+financial-scraper transcripts --tickers-file config/tickers.txt --year 2025 --output-dir ./runs
+```
+
+### Resume an interrupted transcript download
+
+```bash
+financial-scraper transcripts --tickers AAPL MSFT GOOG AMZN META --year 2025 --resume --output-dir ./runs
+```
+
+> **Tip:** Transcript discovery scans monthly sitemaps (one HTTP request per month), so runs targeting a single year take ~30s for discovery + a few seconds per transcript page fetched.
+
+---
+
 ## Resume & Recovery
 
 ### Resume an interrupted run

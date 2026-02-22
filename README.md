@@ -1,9 +1,9 @@
 # financial-scraper
 
-Ethical, async web scraper for financial research. Searches DuckDuckGo, fetches pages with fingerprint rotation, extracts clean text via trafilatura, and outputs to Parquet.
+Ethical, modular web scraper for financial research. Three modes: DuckDuckGo search (text/news), deep URL crawling (crawl4ai headless browser), and earnings call transcript downloading (Motley Fool). Outputs to Parquet.
 
 ![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue)
-![Tests](https://img.shields.io/github/actions/workflow/status/HydrAI/financial-scraper/tests.yml?label=tests)
+![Tests](https://img.shields.io/badge/tests-350%20passed-brightgreen)
 ![Coverage](https://img.shields.io/badge/coverage-89%25-brightgreen)
 ![License: MIT](https://img.shields.io/badge/license-MIT-green)
 
@@ -15,7 +15,8 @@ Ethical, async web scraper for financial research. Searches DuckDuckGo, fetches 
 - **DuckDuckGo search**, text and news modes, no API keys required
 - **Async HTTP**, aiohttp with configurable concurrency and per-domain throttling
 - **HTML + PDF extraction**, trafilatura 2-pass for HTML, pdfplumber or Docling for PDFs (layout-aware with table detection)
-- **Content deduplication**, URL normalization + SHA256 content hashing
+- **Content deduplication**, URL normalization + SHA256 exact hash + MinHash LSH fuzzy near-duplicate detection
+- **Earnings transcripts**, download structured earnings call transcripts by ticker from Motley Fool (speakers, Q&A, metadata)
 - **Checkpoint/resume**, atomic saves after each query, crash recovery
 - **Fingerprint rotation**, 5 browser profiles to reduce bot detection
 - **Parquet + JSONL output**, columnar storage with snappy compression
@@ -38,6 +39,9 @@ financial-scraper search --queries-file queries.txt --search-type news --output-
 # Crawl mode — deep-crawl seed URLs with crawl4ai (headless browser)
 pip install -e "./financial_scraper[crawl]"
 financial-scraper crawl --urls-file urls.txt --max-depth 2 --output-dir ./runs
+
+# Transcripts mode — download earnings call transcripts by ticker
+financial-scraper transcripts --tickers AAPL MSFT --year 2025 --output-dir ./runs
 ```
 
 ---
@@ -147,6 +151,23 @@ financial-scraper crawl --urls-file seed_urls.txt --max-depth 2 --pdf-extractor 
 
 Seed URLs can point directly to PDFs (e.g. SEC filings). PDF and HTML results share the same Parquet output schema.
 
+### Earnings call transcripts (transcripts subcommand)
+
+Download structured transcripts from Motley Fool by ticker symbol:
+
+```bash
+# All 2025 transcripts for Apple
+financial-scraper transcripts --tickers AAPL --year 2025 --output-dir ./runs
+
+# Multiple tickers, specific quarters, with JSONL
+financial-scraper transcripts --tickers AAPL MSFT NVDA --quarters Q1 Q4 --jsonl --output-dir ./runs
+
+# From a file of tickers (one per line)
+financial-scraper transcripts --tickers-file tickers.txt --year 2025 --output-dir ./runs
+```
+
+Discovers transcript URLs via Motley Fool sitemaps, extracts speakers, prepared remarks, and Q&A sections. Output uses the same Parquet schema as search and crawl modes.
+
 ### More options
 
 ```bash
@@ -186,7 +207,7 @@ Federal Reserve interest rate decision
 treasury yield curve inversion signal
 ```
 
-See [`docs/examples/`](docs/examples/) for ready-to-use query files, or jump to the **[CLI Cookbook](docs/cli-examples.md)** for copy-paste commands.
+See [`financial_scraper/config/`](financial_scraper/config/) for ready-to-use query files, or jump to the **[CLI Cookbook](docs/cli-examples.md)** for copy-paste commands.
 
 ---
 
@@ -246,9 +267,25 @@ pipeline = ScraperPipeline(config)
 asyncio.run(pipeline.run())
 ```
 
-`ScraperConfig` is a frozen dataclass with 30+ fields covering search, fetch, extraction, Tor, and output settings. See the [User Guide, Configuration Reference](docs/user-guide.md#configuration-reference) for the full field table with types and defaults.
+`ScraperConfig` is a frozen dataclass with 30+ fields covering search, fetch, extraction, Tor, and output settings. See the [User Guide](docs/user-guide.md#configuration-reference) for the full field table.
 
-See [`docs/examples/`](docs/examples/) for more Python examples.
+### Transcripts API
+
+```python
+from pathlib import Path
+from financial_scraper.transcripts import TranscriptConfig, TranscriptPipeline
+
+config = TranscriptConfig(
+    tickers=("AAPL", "MSFT"),
+    year=2025,
+    quarters=("Q1",),
+    output_dir=Path("./runs"),
+    output_path=Path("./runs/transcripts.parquet"),
+)
+
+pipeline = TranscriptPipeline(config)
+pipeline.run()  # Synchronous — no asyncio.run() needed
+```
 
 ---
 
@@ -297,7 +334,7 @@ financial-scraper search --queries-file queries.txt [OPTIONS]
 | `--reset` | off | Delete checkpoint before running (fresh start) |
 | `--reset-queries` | off | Clear completed queries but keep URL history |
 | `--checkpoint FILE` | `.scraper_checkpoint.json` | Checkpoint file path |
-| `--exclude-file FILE` | - | Domain exclusion list |
+| `--exclude-file FILE` | built-in list | Domain exclusion list (74 domains) |
 
 ### `crawl` subcommand
 
@@ -321,13 +358,34 @@ financial-scraper crawl --urls-file urls.txt [OPTIONS]
 | `--date-to YYYY-MM-DD` | - | Keep pages before this date |
 | `--jsonl` | off | Also write JSONL output |
 | `--markdown` | off | Also write Markdown output |
-| `--exclude-file FILE` | - | Domain exclusion list |
+| `--exclude-file FILE` | built-in list | Domain exclusion list (74 domains) |
 | `--checkpoint FILE` | `.crawl_checkpoint.json` | Checkpoint file path |
 | `--resume` | off | Resume from last checkpoint |
 | `--reset` | off | Delete checkpoint before running |
 | `--no-robots` | off | Skip robots.txt checking |
 | `--pdf-extractor {auto,docling,pdfplumber}` | `auto` | PDF extraction backend |
 | `--stealth` | off | Reduced concurrency mode |
+
+### `transcripts` subcommand
+
+Download earnings call transcripts from Motley Fool by ticker symbol.
+
+```bash
+financial-scraper transcripts --tickers AAPL MSFT [OPTIONS]
+```
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--tickers AAPL MSFT ...` | - | Ticker symbols (at least one of `--tickers` or `--tickers-file` required) |
+| `--tickers-file FILE` | - | Text file with tickers (one per line) |
+| `--year YYYY` | current year | Fiscal year to search |
+| `--quarters Q1 Q2 ...` | all | Filter to specific quarters |
+| `--concurrent N` | `5` | Max parallel fetches |
+| `--output-dir DIR` | `.` | Base directory for timestamped output folders |
+| `--jsonl` | off | Also write JSONL output |
+| `--checkpoint FILE` | `.transcript_checkpoint.json` | Checkpoint file path |
+| `--resume` | off | Resume from last checkpoint |
+| `--reset` | off | Delete checkpoint before running |
 
 ---
 

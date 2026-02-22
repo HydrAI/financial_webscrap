@@ -15,9 +15,10 @@ A step-by-step guide to installing, configuring, and running financial-scraper,f
 7. [Scaling Up](#scaling-up)
 8. [Using Tor](#using-tor)
 9. [URL Deep-Crawl (crawl subcommand)](#url-deep-crawl-crawl-subcommand)
-10. [Python API Reference](#python-api-reference)
-11. [Troubleshooting & FAQ](#troubleshooting--faq)
-12. [Platform Notes](#platform-notes)
+10. [Earnings Transcripts (transcripts subcommand)](#earnings-transcripts-transcripts-subcommand)
+11. [Python API Reference](#python-api-reference)
+12. [Troubleshooting & FAQ](#troubleshooting--faq)
+13. [Platform Notes](#platform-notes)
 
 ---
 
@@ -331,7 +332,7 @@ linkedin.com
 youtube.com
 ```
 
-Then use `--exclude-file exclude_domains.txt`. The default exclusion list at `config/exclude_domains.txt` blocks 60+ domains known to block scrapers or return low-quality content.
+Then use `--exclude-file exclude_domains.txt`. The default exclusion list at `config/exclude_domains.txt` blocks 74 domains known to block scrapers or return low-quality content. Use `--no-exclude` to disable it.
 
 ---
 
@@ -402,7 +403,7 @@ The `ScraperConfig` frozen dataclass holds all settings. Every CLI flag maps to 
 | `output_dir` | `Path` | `.` | `--output-dir` | Base dir for timestamped folders |
 | `output_path` | `Path` | `output.parquet` | `--output` | Explicit Parquet path |
 | `jsonl_path` | `Path\|None` | `None` | `--jsonl` | JSONL output path (auto-generated if flag set) |
-| `exclude_file` | `Path\|None` | `None` | `--exclude-file` | Domain exclusion list |
+| `exclude_file` | `Path\|None` | built-in list | `--exclude-file` | Domain exclusion list (74 domains, `--no-exclude` to disable) |
 | `checkpoint_file` | `Path` | `.scraper_checkpoint.json` | `--checkpoint` | Checkpoint file path |
 | `resume` | `bool` | `False` | `--resume` | Resume from last checkpoint |
 | `reset_queries` | `bool` | `False` | `--reset-queries` | Clear completed queries but keep URL history |
@@ -705,6 +706,88 @@ config = CrawlConfig(
 
 pipeline = CrawlPipeline(config)
 asyncio.run(pipeline.run())
+```
+
+---
+
+## Earnings Transcripts (`transcripts` subcommand)
+
+The `transcripts` subcommand downloads structured earnings call transcripts from Motley Fool. It discovers transcript URLs via monthly sitemaps, fetches and extracts full transcript content (speakers, prepared remarks, Q&A), and outputs to Parquet.
+
+### When to use `transcripts`
+
+| Use case | Subcommand |
+|----------|------------|
+| Discover content from keyword queries | `search` |
+| Crawl specific domains/pages you already know | `crawl` |
+| Download earnings call transcripts by ticker | `transcripts` |
+
+### Basic usage
+
+```bash
+# Download all 2025 transcripts for Apple
+python -m financial_scraper transcripts --tickers AAPL --year 2025 --output-dir ./runs
+
+# Multiple tickers, specific quarters
+python -m financial_scraper transcripts --tickers AAPL MSFT NVDA --quarters Q1 Q4 --output-dir ./runs
+
+# With JSONL output
+python -m financial_scraper transcripts --tickers AAPL --year 2025 --jsonl --output-dir ./runs
+
+# From a file of tickers (one per line)
+python -m financial_scraper transcripts --tickers-file tickers.txt --year 2025 --output-dir ./runs
+```
+
+### How it works
+
+1. **Discovery**: Scans Motley Fool monthly XML sitemaps (`fool.com/sitemap/YYYY/MM`) for transcript URLs containing the target ticker
+2. **Fetch**: Downloads each transcript page with polite 1.5s delays
+3. **Extract**: Parses HTML for metadata (JSON-LD), participants, speakers, full transcript text, and splits into prepared remarks vs Q&A
+4. **Dedup + Store**: Deduplicates by URL and content, writes to Parquet with `merged_by_year` schema
+
+### Output format
+
+The output uses the same Parquet schema as search and crawl modes:
+
+| Column | Example value |
+|--------|---------------|
+| `company` | `AAPL` |
+| `title` | `AAPL Q1 2025 Earnings Call Transcript` |
+| `link` | `https://www.fool.com/earnings/call-transcripts/2025/01/30/apple-aapl-q1-2025-...` |
+| `date` | `2025-01-30` |
+| `source` | `fool.com` |
+| `full_text` | Full transcript (typically 5,000-10,000+ words) |
+| `source_file` | `AAPL_transcript_Q1_2025.parquet` |
+
+### Key options
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--tickers AAPL MSFT` | (required) | Ticker symbols to search |
+| `--tickers-file FILE` | None | File with tickers (one per line) |
+| `--year N` | current year | Fiscal year to search |
+| `--quarters Q1 Q2 ...` | all | Filter to specific quarters |
+| `--concurrent N` | 5 | Max parallel requests |
+| `--jsonl` | off | Also write JSONL output |
+| `--resume` | off | Resume from checkpoint |
+| `--reset` | off | Delete checkpoint before running |
+
+### Python API
+
+```python
+from pathlib import Path
+from financial_scraper.transcripts import TranscriptConfig, TranscriptPipeline
+
+config = TranscriptConfig(
+    tickers=("AAPL", "MSFT"),
+    year=2025,
+    quarters=("Q1",),
+    output_dir=Path("./runs"),
+    output_path=Path("./runs/transcripts.parquet"),
+)
+
+pipeline = TranscriptPipeline(config)
+pipeline.run()  # Synchronous — no asyncio.run() needed
 ```
 
 ---

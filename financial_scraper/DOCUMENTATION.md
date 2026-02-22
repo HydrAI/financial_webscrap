@@ -17,7 +17,7 @@
 
 ## 1. Project Overview
 
-**financial_scraper** is a modular Python package that searches for financial content via DuckDuckGo, fetches web pages asynchronously, extracts clean text, and stores results in Parquet format compatible with the `merged_by_year` data pipeline.
+**financial_scraper** is a modular Python package for financial content acquisition. It supports three modes: DuckDuckGo search (text/news), deep URL crawling (crawl4ai), and earnings call transcript downloading (Motley Fool). All modes output to Parquet format compatible with the `merged_by_year` data pipeline.
 
 ### What it does
 
@@ -44,7 +44,7 @@ financial_scraper/
 │   ├── 02_search_news.ipynb           # Jupyter notebook: news search mode
 │   └── 03_crawl_urls.ipynb            # Jupyter notebook: URL deep-crawl mode
 ├── config/
-│   ├── exclude_domains.txt            # 48 blocked domains (social, video, paywalled, low-quality)
+│   ├── exclude_domains.txt            # 74 blocked domains (social, video, paywalled, low-quality)
 │   ├── queries_example.txt            # Example query file
 │   ├── commodities_50.txt             # 50 commodity queries (energy, metals, grains, softs, livestock)
 │   ├── commodities_300.txt            # 305 commodity queries (comprehensive coverage)
@@ -80,11 +80,17 @@ financial_scraper/
 │   │   ├── clean.py                   # Boilerplate removal + content-type filtering
 │   │   ├── date_filter.py             # Post-extraction date range filtering
 │   │   └── links.py                   # BFS link extraction + same-domain filtering
-│   └── store/
-│       ├── __init__.py
-│       ├── dedup.py                   # URL + content SHA256 + MinHash LSH fuzzy deduplication
-│       └── output.py                  # Parquet/JSONL writers (merged_by_year schema)
-└── tests/                             # 332 tests (pytest)
+│   ├── store/
+│   │   ├── __init__.py
+│   │   ├── dedup.py                   # URL + content SHA256 + MinHash LSH fuzzy deduplication
+│   │   └── output.py                  # Parquet/JSONL writers (merged_by_year schema)
+│   └── transcripts/
+│       ├── __init__.py                # Lazy import for TranscriptPipeline
+│       ├── config.py                  # TranscriptConfig frozen dataclass
+│       ├── discovery.py               # Sitemap-based transcript URL discovery
+│       ├── extract.py                 # HTML transcript extraction (speakers, sections, metadata)
+│       └── pipeline.py                # TranscriptPipeline: discover -> fetch -> extract -> store
+└── tests/                             # 350 tests (pytest)
 ```
 
 ### Data Flow
@@ -134,6 +140,43 @@ queries.txt
 │  ParquetWriter   │  Append-mode, merged_by_year schema
 │  + JSONLWriter   │  Optional JSONL alongside
 │  + Checkpoint    │  Atomic save after each query
+└─────────────────┘
+```
+
+### Transcript Data Flow
+
+```
+tickers (CLI or file)
+    │
+    ▼
+┌─────────────────┐
+│  discover_       │  Scan fool.com/sitemap/YYYY/MM monthly sitemaps
+│  transcripts()   │  Filter by ticker, year, quarter via URL slug regex
+└────────┬────────┘
+         │ List[TranscriptInfo]
+         ▼
+┌─────────────────┐
+│  requests.get()  │  Fetch transcript HTML pages
+│  (synchronous)   │  1.5s polite delay between requests
+└────────┬────────┘
+         │ HTML text
+         ▼
+┌─────────────────┐
+│  extract_        │  Parse JSON-LD metadata (ticker, date, headline)
+│  transcript()    │  Extract article-body sections (participants, transcript)
+│                  │  Detect speakers, split prepared remarks vs Q&A
+└────────┬────────┘
+         │ TranscriptResult
+         ▼
+┌─────────────────┐
+│  Deduplicator    │  URL + content SHA256 + MinHash LSH fuzzy
+│  + Checkpoint    │  Skip already-fetched URLs on resume
+└────────┬────────┘
+         │ Final records
+         ▼
+┌─────────────────┐
+│  ParquetWriter   │  merged_by_year schema, source=fool.com
+│  + JSONLWriter   │  source_file={TICKER}_transcript_{Q}_{YEAR}
 └─────────────────┘
 ```
 
@@ -262,6 +305,43 @@ RESUME:
   --reset                   Delete checkpoint before running (fresh start)
   --reset-queries           Clear completed queries but keep URL history
   --exclude-file FILE       Domain exclusion list
+```
+
+### Transcript usage
+
+```bash
+# Download transcripts for specific tickers
+python -m financial_scraper transcripts --tickers AAPL MSFT --year 2025 --output-dir ./runs
+
+# Filter to specific quarters
+python -m financial_scraper transcripts --tickers NVDA --quarters Q1 Q4 --output-dir ./runs
+
+# From a file of tickers
+python -m financial_scraper transcripts --tickers-file tickers.txt --year 2025 --jsonl --output-dir ./runs
+```
+
+### Transcript CLI flags
+
+```
+INPUT (at least one required):
+  --tickers AAPL MSFT     Ticker symbols
+  --tickers-file FILE     File with tickers (one per line, # comments OK)
+
+FILTERS:
+  --year YYYY             Fiscal year (default: current year)
+  --quarters Q1 Q2 ...    Filter to specific quarters (default: all)
+
+FETCH:
+  --concurrent N          Max parallel fetches (default: 5)
+
+OUTPUT:
+  --output-dir DIR        Base dir for timestamped output folders
+  --jsonl                 Also write JSONL output
+
+RESUME:
+  --checkpoint FILE       Checkpoint file (default: .transcript_checkpoint.json)
+  --resume                Resume from last checkpoint
+  --reset                 Delete checkpoint before running
 ```
 
 ### Query file format
@@ -605,10 +685,79 @@ Delegates to `main.main()`. Required because the package uses a `src/` layout,wi
 **Purpose**: Parse CLI arguments and launch pipeline.
 
 **Features**:
+- Three subcommands: `search`, `crawl`, `transcripts`
 - Datetime-stamped output folders (default) or explicit file path
 - Windows asyncio policy fix
 - Noisy logger suppression (DDG, urllib3, trafilatura)
 - Elapsed time reporting
+
+### 6.22 `transcripts/discovery.py` - Sitemap-based Transcript Discovery
+
+**Purpose**: Discover earnings call transcript URLs from Motley Fool sitemaps.
+
+**Implementation**:
+- Fetches monthly XML sitemaps at `https://www.fool.com/sitemap/YYYY/MM`
+- Filters URLs matching `/earnings/call-transcripts/` containing the target ticker
+- Parses URL slug via regex to extract ticker, quarter, fiscal year, publication date
+- Scans target year + following year (Q4 transcripts published in Jan/Feb of next year)
+
+**Classes**:
+- `TranscriptInfo` (frozen dataclass): `url`, `ticker`, `quarter`, `year`, `pub_date`
+
+**Functions**:
+- `discover_transcripts(ticker, year, quarters)` — main discovery entry point
+- `_fetch_sitemap_urls(year, month)` — fetch and parse a single monthly sitemap
+- `_parse_transcript_url(url)` — extract metadata from URL slug
+
+### 6.23 `transcripts/extract.py` - Transcript HTML Extraction
+
+**Purpose**: Parse Motley Fool transcript HTML into structured content.
+
+**Implementation**:
+- Extracts JSON-LD structured data for metadata (headline, ticker, publication date)
+- Finds `<div class="article-body">` and extracts sections by H2 headings
+- Sections: DATE, CALL PARTICIPANTS, Full Conference Call Transcript
+- Speaker detection regex: `^([A-Z][A-Za-z\s.\-']+?)(?:\s*,\s*[A-Za-z\s]+)?:`
+- Splits transcript into prepared remarks vs Q&A at operator markers ("question-and-answer session", etc.)
+- Fallback: if no transcript section found, grabs all `<p>` text from article body
+
+**Classes**:
+- `TranscriptResult` (dataclass): `company`, `ticker`, `quarter`, `year`, `date`, `full_text`, `speakers`, `participants`, `prepared_remarks`, `qa_section`
+
+### 6.24 `transcripts/pipeline.py` - TranscriptPipeline
+
+**Purpose**: Orchestrate transcript discovery, fetching, extraction, and storage.
+
+**Flow**:
+1. Load tickers from CLI args or file
+2. For each ticker: discover transcript URLs via sitemaps
+3. Filter already-fetched URLs (checkpoint + dedup)
+4. Fetch each transcript page with `requests` (1.5s polite delay)
+5. Extract structured content
+6. Content dedup (SHA256 + MinHash LSH)
+7. Write to Parquet + optional JSONL
+8. Save checkpoint after each ticker
+
+**Reuses**: `Deduplicator`, `ParquetWriter`, `JSONLWriter`, `Checkpoint` from existing infrastructure.
+
+### 6.25 `transcripts/config.py` - TranscriptConfig
+
+**Purpose**: Configuration for the transcripts subcommand as a frozen dataclass.
+
+**Key fields**:
+
+| Field | Type | Default | CLI Flag |
+|-------|------|---------|----------|
+| `tickers` | `tuple[str, ...]` | `()` | `--tickers` |
+| `tickers_file` | `Path\|None` | `None` | `--tickers-file` |
+| `year` | `int\|None` | `None` (current year) | `--year` |
+| `quarters` | `tuple[str, ...]` | `()` (all) | `--quarters` |
+| `concurrent` | `int` | `5` | `--concurrent` |
+| `output_dir` | `Path` | `.` | `--output-dir` |
+| `output_path` | `Path` | `output.parquet` | (auto-generated) |
+| `jsonl_path` | `Path\|None` | `None` | `--jsonl` |
+| `checkpoint_file` | `Path` | `.transcript_checkpoint.json` | `--checkpoint` |
+| `resume` | `bool` | `False` | `--resume` |
 
 ---
 
@@ -650,7 +799,7 @@ Delegates to `main.main()`. Required because the package uses a `src/` layout,wi
 | output_dir | Path | . | --output-dir | Output base dir |
 | output_path | Path | output.parquet | --output | Parquet file path |
 | jsonl_path | Path/None | None | --jsonl | JSONL output |
-| exclude_file | Path/None | None | --exclude-file | Blocked domains file |
+| exclude_file | Path/None | built-in list | --exclude-file | Blocked domains file (74 domains, use --no-exclude to disable) |
 | checkpoint_file | Path | .scraper_checkpoint.json | --checkpoint | Checkpoint file |
 | resume | bool | False | --resume | Resume from checkpoint |
 | reset_queries | bool | False | --reset-queries | Clear completed queries, keep URL history |
@@ -744,7 +893,7 @@ This is expected behavior. The pipeline logs failures and moves on.
 
 ### Phase 2: Implementation
 
-Built all 17 modules following the project brief. Key adaptations:
+Built all modules following the project brief. Key adaptations:
 - Used `trafilatura.bare_extraction()` instead of v18's custom BeautifulSoup logic
 - Used `aiolimiter.AsyncLimiter` instead of custom token bucket
 - Used frozen dataclass instead of mutable config dict
@@ -792,11 +941,10 @@ financial_webscrap/
 ├── README.md                    # Repo-level documentation
 ├── financial_scraper/           # Active package
 │   ├── DOCUMENTATION.md         # This file
-│   ├── README.md                # Package-level documentation
 │   ├── pyproject.toml
-│   ├── _run_50.py               # Standalone runner script
+│   ├── examples/                # Jupyter notebooks (search, news, crawl)
 │   ├── config/                  # Query files + exclusion list
-│   └── src/financial_scraper/   # Source code (17 modules)
+│   └── src/financial_scraper/   # Source code (22 modules)
 ```
 
 ### Phase 6: `__main__.py` + 300-Query File
@@ -816,7 +964,7 @@ Analysis of 1,923 merged articles from two scrape runs (Feb 18-19) revealed that
 
 4. **PR wire disclaimer removal** (`extract/clean.py`): Two regex patterns strip MENAFN-style multi-line disclaimer blocks ("We do not accept any responsibility or liability...kindly contact the provider above").
 
-5. **Domain exclusions** (`config/exclude_domains.txt`): Added 8 domains with >50% bad content rate: `caixinglobal.com` (100% paywall), `cnbc.com` (89% ticker pages), `theglobeandmail.com` (88% TipRanks blurbs), `nature.com` (84% non-financial), `bloomberg.com` (82% paywall), `zawya.com` (53% truncated), `scmp.com`, `law.com`. Total excluded domains: 48.
+5. **Domain exclusions** (`config/exclude_domains.txt`): Added 8 domains with >50% bad content rate: `caixinglobal.com` (100% paywall), `cnbc.com` (89% ticker pages), `theglobeandmail.com` (88% TipRanks blurbs), `nature.com` (84% non-financial), `bloomberg.com` (82% paywall), `zawya.com` (53% truncated), `scmp.com`, `law.com`. Total excluded domains: 74.
 
 **Impact**: In future scrapes, ~466 low-value articles per run will be blocked at domain level, ~32 ticker pages and ~32 Nature Index pages caught by post-extraction filter, and remaining articles have cleaner text.
 
@@ -841,6 +989,22 @@ Added a standalone `crawl` subcommand that deep-crawls seed URLs using crawl4ai'
 8. **Resume/checkpoint**: Crawl sessions support checkpoint/resume with atomic JSON saves.
 
 9. **53 new tests** for crawl pipeline, bringing the total to 327.
+
+### Phase 9: Earnings Call Transcript Downloader (2026-02-21)
+
+Added a `transcripts` subcommand that downloads structured earnings call transcripts from Motley Fool. This replaces the broken `discountingcashflows.com` API used by the legacy `FinNLP` library (now returns 403).
+
+1. **Source research**: Evaluated multiple transcript sources. Motley Fool publishes full transcripts publicly (no paywall, no API key). URL pattern: `/earnings/call-transcripts/YYYY/MM/DD/{slug}/`.
+
+2. **Discovery via sitemaps** (`transcripts/discovery.py`): Monthly XML sitemaps at `fool.com/sitemap/YYYY/MM` contain all published URLs. Scanning and filtering by ticker slug is more reliable than DDG search or listing page pagination.
+
+3. **HTML extraction** (`transcripts/extract.py`): Parses JSON-LD metadata (ticker from `about[].tickerSymbol`, date from `datePublished`), article-body H2 sections (DATE, CALL PARTICIPANTS, Full Conference Call Transcript), speaker names, and Q&A split.
+
+4. **Pipeline** (`transcripts/pipeline.py`): Synchronous fetch with `requests` (polite 1.5s delay), reuses existing `Deduplicator`, `ParquetWriter`, `JSONLWriter`, `Checkpoint`.
+
+5. **Verified output**: AAPL Q1 2025 transcript — 8,136 words, 48,422 chars, full speaker list, prepared remarks + Q&A sections extracted correctly.
+
+6. **18 new tests** for discovery URL parsing, config, HTML extraction, JSON-LD parsing, and ticker extraction. Total: 350 tests.
 
 ### Errors Fixed During Development
 
@@ -880,7 +1044,7 @@ ScraperConfig(
 
 ## Appendix A: Excluded Domains (config/exclude_domains.txt)
 
-48 domains blocked by default across these categories:
+74 domains blocked by default across these categories:
 
 | Category | Domains |
 |---|---|

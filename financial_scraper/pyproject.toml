@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "financial-scraper"
-version = "0.1.0"
+version = "0.4.0"
 description = "Ethical, async web scraper for financial research - DuckDuckGo search + crawl4ai deep-crawl, trafilatura extraction, Parquet output"
 requires-python = ">=3.10"
 license = {text = "MIT"}
