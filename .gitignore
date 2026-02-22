@@ -1,0 +1,111 @@
+# =============================================================================
+# Claude / AI assistant artifacts
+# =============================================================================
+.claude/
+.claude.*
+claude_output/
+CLAUDE.md
+.gitignore
+
+# =============================================================================
+# Python
+# =============================================================================
+__pycache__/
+*.py[cod]
+.coverage
+.coverage.*
+htmlcov/
+*$py.class
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+*.whl
+.eggs/
+pip-wheel-metadata/
+
+# Virtual environments
+.venv/
+venv/
+ENV/
+env/
+
+# =============================================================================
+# IDE / Editor
+# =============================================================================
+# Spyder
+.spyderproject
+.spyproject
+
+# VS Code
+.vscode/
+
+# PyCharm / JetBrains
+.idea/
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb_checkpoints
+
+# =============================================================================
+# OS
+# =============================================================================
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+*.lnk
+
+# macOS
+.DS_Store
+._*
+
+# =============================================================================
+# Project-specific
+# =============================================================================
+# Scraper checkpoints (generated at runtime)
+.scraper_checkpoint.json
+*.checkpoint.json
+
+# WIP / manual test & run scripts
+_test_*.py
+_run_*.py
+
+# Session notes (local only)
+docs/TODO.md
+docs/RECAP.md
+
+# China-related query lists (private/internal)
+*china*
+*China*
+
+# Scraper run outputs (large, generated)
+financial_scraper/runs/
+financial_scraper/examples/runs_*/
+financial_scraper/examples/queries_*
+financial_scraper/examples/seed_urls_*
+
+# Research (local exploration / experiments)
+research/
+research_2/
+research_3/
+
+# Archive data
+_archive/
+
+# Data outputs (large, generated)
+*.parquet
+*.jsonl
+output/
+
+# Logs
+*.log
+scraper_debug.log
+
+# Environment / secrets
+.env
+.env.*
+*.pem
+*.key
