@@ -42,7 +42,8 @@ financial_scraper/
 ├── examples/
 │   ├── 01_search_text.ipynb           # Jupyter notebook: text search mode
 │   ├── 02_search_news.ipynb           # Jupyter notebook: news search mode
-│   └── 03_crawl_urls.ipynb            # Jupyter notebook: URL deep-crawl mode
+│   ├── 03_crawl_urls.ipynb            # Jupyter notebook: URL deep-crawl mode
+│   └── 04_transcripts.ipynb           # Jupyter notebook: earnings call transcripts
 ├── config/
 │   ├── exclude_domains.txt            # 74 blocked domains (social, video, paywalled, low-quality)
 │   ├── queries_example.txt            # Example query file
