@@ -99,10 +99,12 @@ def discover_transcripts(
     ticker_upper = ticker.upper()
     ticker_lower = ticker.lower()
 
-    # Scan sitemaps for the target year and the next year
-    # (Q4 transcripts for 2025 may appear in Jan/Feb 2026 sitemaps)
+    # Scan sitemaps for the prior year, target year, and next year.
+    # Companies with fiscal years offset from the calendar year (e.g. NVIDIA,
+    # whose FY2025 Q1-Q3 were published in 2024 sitemaps) require looking back,
+    # and Q4 transcripts are often published in Jan/Feb of year+1.
     months_to_scan = []
-    for y in [year, year + 1]:
+    for y in [year - 1, year, year + 1]:
         for m in range(1, 13):
             # Don't scan future months
             now = datetime.now()
