@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.1] - 2026-02-28
+
+### Added
+
+- **`--all-formats` flag** (`search` and `crawl` subcommands): shorthand for `--jsonl --markdown`, writes all three output formats (Parquet + JSONL + Markdown) in one run
+- **`read_output` MCP tool: `as_markdown` parameter**: set `as_markdown=True` to get a formatted Markdown report from a Parquet file instead of raw JSON rows; returns `{total_rows, returned_rows, markdown}`
+- **GitHub Actions CI** (`.github/workflows/pytest.yml`): runs `pytest` on push to `main` and on PRs, Python 3.11 and 3.12 matrix
+- **55 new tests** (405 total): `TranscriptPipeline` integration suite (fetch, extract, HTTP failure, JSONL output, tickers file), `discover_transcripts` with mocked sitemaps, `_fetch_sitemap_urls` error paths, `build_crawl_config`, `build_transcript_config`, `_run_search` / `_run_crawl` / `_run_transcripts`, `main()` subcommand routing and backward-compat, `--all-formats` / `--markdown` flag tests, `read_output(as_markdown=True)`, pipeline markdown integration
+
+### Changed
+
+- `.gitignore` re-added to version control (self-exclusion line removed); file now ships with the repo
+- Coverage: 79% → 91% (`main.py` 28% → 94%, `transcripts/pipeline.py` 0% → 92%, `transcripts/discovery.py` 37% → 95%)
+- `docs/user-guide.md`: added `markdown_path` to output settings table, updated directory structure diagram to show `.md` and `markdown/` outputs, added Markdown format section with `--all-formats` example
+- `docs/mcp-setup.md`: added `export_markdown` tool reference (parameters, return shape, usage pattern), added `as_markdown` parameter to `read_output` reference, added three new workflow examples (export session as Markdown, read past run as Markdown)
+
 ## [0.4.0] - 2026-02-21
 
 ### Added
