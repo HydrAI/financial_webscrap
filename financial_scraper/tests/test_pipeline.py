@@ -415,6 +415,45 @@ class TestRunWithResults:
 
         assert jsonl_path.exists()
 
+    def test_pipeline_with_markdown(self, tmp_path):
+        from financial_scraper.search.duckduckgo import SearchResult
+        from financial_scraper.fetch.client import FetchResult
+        from financial_scraper.extract.html import ExtractionResult
+
+        markdown_path = tmp_path / "out.md"
+        html_content = " ".join(["word"] * 50)
+
+        qf = tmp_path / "queries.txt"
+        qf.write_text("test query\n")
+        p = _make_pipeline(tmp_path, markdown_path=markdown_path)
+
+        mock_searcher = MagicMock()
+        mock_searcher.search.return_value = [
+            SearchResult(url="https://example.com/1", title="T1",
+                         snippet="S1", search_rank=1, query="test query"),
+        ]
+
+        extraction = ExtractionResult(
+            text=html_content, title="T", author=None, date="2024-06-15",
+            word_count=50, extraction_method="trafilatura", language=None,
+        )
+
+        with patch("financial_scraper.pipeline.DDGSearcher", return_value=mock_searcher):
+            with patch("financial_scraper.pipeline.FetchClient") as MockClient:
+                mock_client_instance = AsyncMock()
+                mock_client_instance.fetch_batch.return_value = [
+                    FetchResult(url="https://example.com/1", status=200,
+                                html="<html>x</html>", content_type="text/html",
+                                content_bytes=None, error=None, response_headers={}),
+                ]
+                MockClient.return_value.__aenter__ = AsyncMock(return_value=mock_client_instance)
+                MockClient.return_value.__aexit__ = AsyncMock(return_value=False)
+
+                with patch.object(p._extractor, "extract", return_value=extraction):
+                    asyncio.run(p.run())
+
+        assert markdown_path.exists()
+
     def test_pipeline_resume(self, tmp_path):
         from financial_scraper.checkpoint import Checkpoint
 

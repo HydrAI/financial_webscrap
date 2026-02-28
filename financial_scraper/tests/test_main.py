@@ -1,10 +1,18 @@
 """Tests for financial_scraper.main."""
 
 import argparse
+import sys
+import pytest
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import patch, MagicMock, AsyncMock
 
-from financial_scraper.main import _resolve_output_paths, build_config
+from financial_scraper.main import (
+    _resolve_output_paths, _resolve_exclude_file,
+    build_config, build_crawl_config, build_transcript_config,
+    _add_search_args, _add_crawl_args, _add_transcript_args,
+    _run_search, _run_crawl, _run_transcripts,
+    main,
+)
 
 
 def _make_args(**overrides):
@@ -35,6 +43,8 @@ def _make_args(**overrides):
         "date_to": None,
         "jsonl": False,
         "markdown": False,
+        "all_formats": False,
+        "no_exclude": False,
         "exclude_file": None,
         "checkpoint": ".scraper_checkpoint.json",
         "resume": False,
@@ -144,3 +154,245 @@ class TestBuildConfig:
         args = _make_args(output=out_file)
         cfg = build_config(args)
         assert cfg.reset_queries is False
+
+    def test_markdown_flag(self, tmp_path):
+        args = _make_args(output_dir=str(tmp_path), markdown=True)
+        _, _, jsonl_path, markdown_path = _resolve_output_paths(args)
+        assert markdown_path is not None
+        assert markdown_path.suffix == ".md"
+        assert jsonl_path is None
+
+    def test_all_formats_flag(self, tmp_path):
+        args = _make_args(output_dir=str(tmp_path), all_formats=True)
+        _, _, jsonl_path, markdown_path = _resolve_output_paths(args)
+        assert jsonl_path is not None
+        assert jsonl_path.suffix == ".jsonl"
+        assert markdown_path is not None
+        assert markdown_path.suffix == ".md"
+
+
+class TestResolveExcludeFile:
+    def test_no_exclude_returns_none(self, tmp_path):
+        args = _make_args(no_exclude=True, exclude_file=None)
+        assert _resolve_exclude_file(args) is None
+
+    def test_explicit_exclude_file(self, tmp_path):
+        ef = tmp_path / "exclude.txt"
+        ef.write_text("example.com\n")
+        args = _make_args(exclude_file=str(ef))
+        result = _resolve_exclude_file(args)
+        assert result == Path(str(ef))
+
+    def test_no_exclude_file_and_default_missing(self, tmp_path):
+        args = _make_args(exclude_file=None)
+        # Default file doesn't exist in tmp env, returns None or default
+        result = _resolve_exclude_file(args)
+        # Either None (if default missing) or a Path (if default found)
+        assert result is None or isinstance(result, Path)
+
+
+def _make_crawl_args(**overrides):
+    defaults = {
+        "urls_file": "urls.txt",
+        "output_dir": None,
+        "max_depth": 2,
+        "max_pages": 50,
+        "semaphore_count": 2,
+        "min_words": 100,
+        "target_language": None,
+        "no_favor_precision": False,
+        "date_from": None,
+        "date_to": None,
+        "jsonl": False,
+        "markdown": False,
+        "all_formats": False,
+        "no_exclude": False,
+        "exclude_file": None,
+        "checkpoint": ".crawl_checkpoint.json",
+        "resume": False,
+        "pdf_extractor": "auto",
+        "no_robots": False,
+        "stealth": False,
+    }
+    defaults.update(overrides)
+    import argparse
+    return argparse.Namespace(**defaults)
+
+
+class TestBuildCrawlConfig:
+    def test_basic_crawl_config(self, tmp_path):
+        args = _make_crawl_args(output_dir=str(tmp_path))
+        cfg = build_crawl_config(args)
+        assert cfg.max_depth == 2
+        assert cfg.max_pages == 50
+        assert cfg.pdf_extractor == "auto"
+
+    def test_crawl_config_with_jsonl(self, tmp_path):
+        args = _make_crawl_args(output_dir=str(tmp_path), jsonl=True)
+        cfg = build_crawl_config(args)
+        assert cfg.jsonl_path is not None
+
+    def test_crawl_config_all_formats(self, tmp_path):
+        args = _make_crawl_args(output_dir=str(tmp_path), all_formats=True)
+        cfg = build_crawl_config(args)
+        assert cfg.jsonl_path is not None
+        assert cfg.markdown_path is not None
+
+
+def _make_transcript_args(**overrides):
+    defaults = {
+        "tickers": ["AAPL"],
+        "tickers_file": None,
+        "year": 2025,
+        "quarters": None,
+        "concurrent": 5,
+        "output_dir": None,
+        "jsonl": False,
+        "checkpoint": ".transcript_checkpoint.json",
+        "resume": False,
+    }
+    defaults.update(overrides)
+    import argparse
+    return argparse.Namespace(**defaults)
+
+
+class TestBuildTranscriptConfig:
+    def test_basic_transcript_config(self, tmp_path):
+        args = _make_transcript_args(output_dir=str(tmp_path))
+        cfg = build_transcript_config(args)
+        assert cfg.tickers == ("AAPL",)
+        assert cfg.year == 2025
+        assert cfg.jsonl_path is None
+
+    def test_transcript_config_with_jsonl(self, tmp_path):
+        args = _make_transcript_args(output_dir=str(tmp_path), jsonl=True)
+        cfg = build_transcript_config(args)
+        assert cfg.jsonl_path is not None
+
+    def test_transcript_config_tickers_uppercased(self, tmp_path):
+        args = _make_transcript_args(output_dir=str(tmp_path), tickers=["aapl", "msft"])
+        cfg = build_transcript_config(args)
+        assert "AAPL" in cfg.tickers
+        assert "MSFT" in cfg.tickers
+
+
+class TestAddArgsFunctions:
+    def test_add_search_args_registers_required(self):
+        p = argparse.ArgumentParser()
+        _add_search_args(p)
+        args = p.parse_args(["--queries-file", "q.txt"])
+        assert args.queries_file == "q.txt"
+        assert args.max_results == 20
+        assert args.search_type == "text"
+        assert args.jsonl is False
+        assert args.markdown is False
+        assert args.all_formats is False
+
+    def test_add_crawl_args_registers_required(self):
+        p = argparse.ArgumentParser()
+        _add_crawl_args(p)
+        args = p.parse_args(["--urls-file", "urls.txt"])
+        assert args.urls_file == "urls.txt"
+        assert args.max_depth == 2
+        assert args.pdf_extractor == "auto"
+
+    def test_add_transcript_args_registers_defaults(self):
+        p = argparse.ArgumentParser()
+        _add_transcript_args(p)
+        args = p.parse_args(["--tickers", "AAPL"])
+        assert args.tickers == ["AAPL"]
+        assert args.concurrent == 5
+        assert args.jsonl is False
+
+
+class TestRunFunctions:
+    def test_run_search_calls_pipeline(self, tmp_path):
+        qf = tmp_path / "q.txt"
+        qf.write_text("test query\n")
+        args = _make_args(output_dir=str(tmp_path), queries_file=str(qf))
+        args.reset = False
+
+        with patch("financial_scraper.pipeline.ScraperPipeline") as MockPipeline:
+            MockPipeline.return_value = MagicMock()
+            with patch("financial_scraper.main.asyncio.run"):
+                _run_search(args)
+        MockPipeline.assert_called_once()
+
+    def test_run_search_with_reset(self, tmp_path):
+        qf = tmp_path / "q.txt"
+        qf.write_text("test\n")
+        cp = tmp_path / "cp.json"
+        cp.write_text("{}")
+        args = _make_args(output_dir=str(tmp_path), queries_file=str(qf),
+                          checkpoint=str(cp))
+        args.reset = True
+
+        with patch("financial_scraper.pipeline.ScraperPipeline") as MockPipeline:
+            MockPipeline.return_value = MagicMock()
+            with patch("financial_scraper.main.asyncio.run"):
+                _run_search(args)
+        assert not cp.exists()
+
+    def test_run_crawl_calls_pipeline(self, tmp_path):
+        uf = tmp_path / "urls.txt"
+        uf.write_text("https://example.com\n")
+        args = _make_crawl_args(output_dir=str(tmp_path), urls_file=str(uf))
+        args.reset = False
+
+        with patch("financial_scraper.crawl.pipeline.CrawlPipeline") as MockPipeline:
+            MockPipeline.return_value = MagicMock()
+            with patch("financial_scraper.main.asyncio.run"):
+                _run_crawl(args)
+        MockPipeline.assert_called_once()
+
+    def test_run_transcripts_no_tickers_exits(self, tmp_path):
+        args = _make_transcript_args(tickers=None, tickers_file=None,
+                                     output_dir=str(tmp_path))
+        args.reset = False
+        with pytest.raises(SystemExit):
+            _run_transcripts(args)
+
+    def test_run_transcripts_calls_pipeline(self, tmp_path):
+        args = _make_transcript_args(output_dir=str(tmp_path))
+        args.reset = False
+        with patch("financial_scraper.transcripts.pipeline.TranscriptPipeline") as MockPipeline:
+            MockPipeline.return_value = MagicMock()
+            _run_transcripts(args)
+        MockPipeline.assert_called_once()
+
+
+class TestMain:
+    def test_main_no_args_prints_help(self, monkeypatch):
+        monkeypatch.setattr(sys, "argv", ["financial-scraper"])
+        with pytest.raises(SystemExit) as exc:
+            main()
+        assert exc.value.code == 1
+
+    def test_main_search_subcommand(self, tmp_path, monkeypatch):
+        qf = tmp_path / "q.txt"
+        qf.write_text("test\n")
+        monkeypatch.setattr(sys, "argv", [
+            "financial-scraper", "search",
+            "--queries-file", str(qf),
+            "--output-dir", str(tmp_path),
+            "--max-results", "1",
+        ])
+        with patch("financial_scraper.pipeline.ScraperPipeline") as MockPipeline:
+            MockPipeline.return_value = MagicMock()
+            with patch("financial_scraper.main.asyncio.run"):
+                main()
+        MockPipeline.assert_called_once()
+
+    def test_main_backward_compat_no_subcommand(self, tmp_path, monkeypatch):
+        qf = tmp_path / "q.txt"
+        qf.write_text("test\n")
+        monkeypatch.setattr(sys, "argv", [
+            "financial-scraper",
+            "--queries-file", str(qf),
+            "--output-dir", str(tmp_path),
+        ])
+        with patch("financial_scraper.pipeline.ScraperPipeline") as MockPipeline:
+            MockPipeline.return_value = MagicMock()
+            with patch("financial_scraper.main.asyncio.run"):
+                main()
+        MockPipeline.assert_called_once()

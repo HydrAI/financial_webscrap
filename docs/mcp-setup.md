@@ -144,6 +144,24 @@ Convenience tool that chains search, fetch, and extract in one call.
 
 ---
 
+### `export_markdown`
+
+Format articles extracted in the current session as a Markdown report. Must call `scrape` or `extract` first to populate the session cache.
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `urls` | array[string] | null | URLs to format (omit to format all session articles) |
+
+**Returns:** `{markdown: "...", article_count: N}`.
+
+**Typical pattern:**
+```
+scrape("AAPL Q1 2026 earnings") → extract_cache populated
+export_markdown()               → full report as markdown string
+```
+
+---
+
 ### `read_output`
 
 Read a Parquet file from a previous CLI scrape run.
@@ -152,8 +170,11 @@ Read a Parquet file from a previous CLI scrape run.
 |-----------|------|---------|-------------|
 | `file_path` | string | *required* | Path to `.parquet` file |
 | `limit` | int | 50 | Max rows to return |
+| `as_markdown` | bool | false | Return a Markdown report instead of raw JSON rows |
 
-**Returns:** `{total_rows, returned_rows, columns, rows: [...]}`.
+**Returns (default):** `{total_rows, returned_rows, columns, rows: [...]}`.
+
+**Returns (as_markdown=true):** `{total_rows, returned_rows, markdown: "..."}`.
 
 ---
 
@@ -176,6 +197,18 @@ The LLM will call `scrape` with `search_type="news"`, get full article texts, an
 Ask the LLM: *"Read the Parquet file at runs/20260215_235519/scrape_20260215_235519.parquet and show me the top 10 articles by word count."*
 
 The LLM calls `read_output` and processes the data.
+
+### Export session as Markdown
+
+After a `scrape` or `extract` call, ask: *"Format what you found as a Markdown report."*
+
+The LLM calls `export_markdown()` and returns a formatted document with all articles grouped by query, ready to paste, save, or pass to another tool. To format only specific articles, pass their URLs: `export_markdown(urls=["https://..."])`.
+
+### Read a past run as Markdown
+
+Ask: *"Give me a Markdown summary of runs/20260215_143000/scrape_20260215_143000.parquet."*
+
+The LLM calls `read_output(file_path="...", as_markdown=True)` and returns the full report without raw JSON.
 
 ---
 

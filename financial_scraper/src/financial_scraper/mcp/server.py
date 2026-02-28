@@ -324,10 +324,12 @@ async def export_markdown(
 async def read_output(
     file_path: str,
     limit: int = 50,
+    as_markdown: bool = False,
 ) -> dict:
     """Read a Parquet file from a previous CLI scrape run.
 
     Returns column names, total rows, and the first `limit` rows as dicts.
+    Set as_markdown=True to get a formatted Markdown report instead of raw rows.
     """
     import pandas as pd
 
@@ -340,6 +342,14 @@ async def read_output(
         for k, v in row.items():
             if hasattr(v, "isoformat"):
                 row[k] = v.isoformat()
+
+    if as_markdown:
+        md = format_records_md(rows)
+        return {
+            "total_rows": total,
+            "returned_rows": len(rows),
+            "markdown": md,
+        }
 
     return {
         "total_rows": total,

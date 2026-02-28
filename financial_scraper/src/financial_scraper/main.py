@@ -54,9 +54,11 @@ def _resolve_output_paths(
     out_dir = base / ts
     out_dir.mkdir(parents=True, exist_ok=True)
 
+    use_jsonl = args.jsonl or getattr(args, "all_formats", False)
+    use_markdown = args.markdown or getattr(args, "all_formats", False)
     out_path = out_dir / f"{prefix}_{ts}.parquet"
-    jsonl_path = out_dir / f"{prefix}_{ts}.jsonl" if args.jsonl else None
-    markdown_path = out_dir / f"{prefix}_{ts}.md" if args.markdown else None
+    jsonl_path = out_dir / f"{prefix}_{ts}.jsonl" if use_jsonl else None
+    markdown_path = out_dir / f"{prefix}_{ts}.md" if use_markdown else None
     return out_dir, out_path, jsonl_path, markdown_path
 
 
@@ -195,6 +197,8 @@ def _add_search_args(p: argparse.ArgumentParser):
     # Store
     p.add_argument("--jsonl", action="store_true", help="Also write JSONL output")
     p.add_argument("--markdown", action="store_true", help="Also write Markdown output")
+    p.add_argument("--all-formats", action="store_true",
+                   help="Write all output formats: Parquet + JSONL + Markdown (shorthand for --jsonl --markdown)")
     p.add_argument("--exclude-file", default=None,
                    help="Domain exclusion list (default: built-in exclude_domains.txt)")
     p.add_argument("--no-exclude", action="store_true",
@@ -227,6 +231,8 @@ def _add_crawl_args(p: argparse.ArgumentParser):
     # Store
     p.add_argument("--jsonl", action="store_true", help="Also write JSONL output")
     p.add_argument("--markdown", action="store_true", help="Also write Markdown output")
+    p.add_argument("--all-formats", action="store_true",
+                   help="Write all output formats: Parquet + JSONL + Markdown (shorthand for --jsonl --markdown)")
     p.add_argument("--exclude-file", default=None,
                    help="Domain exclusion list (default: built-in exclude_domains.txt)")
     p.add_argument("--no-exclude", action="store_true",

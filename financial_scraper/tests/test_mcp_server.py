@@ -442,3 +442,28 @@ class TestReadOutputTool:
 
         assert result["total_rows"] == 100
         assert result["returned_rows"] == 5
+
+    @pytest.mark.asyncio
+    async def test_read_parquet_as_markdown(self, tmp_path):
+        import pandas as pd
+
+        df = pd.DataFrame({
+            "company": ["oil futures"],
+            "title": ["Article A"],
+            "link": ["https://a.com"],
+            "full_text": ["Some article content here."],
+            "source": ["a.com"],
+            "date": [None],
+            "snippet": ["Some article..."],
+            "source_file": ["test.parquet"],
+        })
+        path = tmp_path / "test.parquet"
+        df.to_parquet(path)
+
+        result = await mcp_server.read_output(file_path=str(path), limit=10, as_markdown=True)
+
+        assert result["total_rows"] == 1
+        assert result["returned_rows"] == 1
+        assert "markdown" in result
+        assert "rows" not in result
+        assert "# Financial Scraper Report" in result["markdown"]

@@ -243,7 +243,11 @@ When using `--output-dir`, the scraper creates a timestamped folder:
 runs/
 └── 20260215_143000/
     ├── scrape_20260215_143000.parquet    # Main output
-    └── scrape_20260215_143000.jsonl      # Optional (if --jsonl)
+    ├── scrape_20260215_143000.jsonl      # Optional (if --jsonl or --all-formats)
+    ├── scrape_20260215_143000.md         # Optional (if --markdown or --all-formats)
+    └── markdown/                         # Optional individual per-article .md files
+        ├── crude_oil_futures_001.md
+        └── crude_oil_futures_002.md
 ```
 
 When using `--output results.parquet`, it writes directly to that path.
@@ -264,6 +268,18 @@ When using `--output results.parquet`, it writes directly to that path.
 ### JSONL format
 
 When `--jsonl` is enabled, each line is a JSON object with the same fields as the Parquet schema. Useful for streaming ingestion or tools that don't support Parquet.
+
+### Markdown format
+
+When `--markdown` is enabled (or `--all-formats`), two sets of files are written:
+
+- **Combined report** (`scrape_<ts>.md`): A single document with a header, article count, and all articles grouped by query. Each article is formatted as a `### title` heading with a metadata table (source, URL, date, word count) followed by the full extracted text.
+- **Individual files** (`markdown/<query-slug>_001.md`, etc.): One file per article, useful for further processing or ingestion into document stores.
+
+```bash
+# Write all three formats at once
+financial-scraper search --queries-file queries.txt --search-type news --all-formats --output-dir ./runs
+```
 
 ### Typical output sizes
 
@@ -403,6 +419,7 @@ The `ScraperConfig` frozen dataclass holds all settings. Every CLI flag maps to 
 | `output_dir` | `Path` | `.` | `--output-dir` | Base dir for timestamped folders |
 | `output_path` | `Path` | `output.parquet` | `--output` | Explicit Parquet path |
 | `jsonl_path` | `Path\|None` | `None` | `--jsonl` | JSONL output path (auto-generated if flag set) |
+| `markdown_path` | `Path\|None` | `None` | `--markdown` | Markdown output path (auto-generated if flag set); `--all-formats` enables both JSONL and Markdown |
 | `exclude_file` | `Path\|None` | built-in list | `--exclude-file` | Domain exclusion list (74 domains, `--no-exclude` to disable) |
 | `checkpoint_file` | `Path` | `.scraper_checkpoint.json` | `--checkpoint` | Checkpoint file path |
 | `resume` | `bool` | `False` | `--resume` | Resume from last checkpoint |

@@ -6,6 +6,8 @@ import pytest
 from financial_scraper.transcripts.config import TranscriptConfig
 from financial_scraper.transcripts.discovery import (
     _parse_transcript_url,
+    _fetch_sitemap_urls,
+    discover_transcripts,
     TranscriptInfo,
 )
 from financial_scraper.transcripts.extract import (
@@ -366,3 +368,246 @@ class TestExtractTicker:
 
     def test_no_about(self):
         assert _extract_ticker_from_jsonld({}) == ""
+
+
+# ---------------------------------------------------------------------------
+# TranscriptPipeline integration tests
+# ---------------------------------------------------------------------------
+
+def _make_transcript_config(tmp_path, **overrides):
+    defaults = {
+        "tickers": ("AAPL",),
+        "tickers_file": None,
+        "year": 2025,
+        "quarters": ("Q1",),
+        "concurrent": 1,
+        "output_dir": tmp_path,
+        "output_path": tmp_path / "out.parquet",
+        "jsonl_path": None,
+        "checkpoint_file": tmp_path / "cp.json",
+        "resume": False,
+    }
+    defaults.update(overrides)
+    return TranscriptConfig(**defaults)
+
+
+_SAMPLE_INFO = TranscriptInfo(
+    url="https://www.fool.com/earnings/call-transcripts/2025/01/30/apple-aapl-q1-2025-earnings-call-transcript/",
+    ticker="AAPL",
+    quarter="Q1",
+    year=2025,
+    pub_date="2025-01-30",
+)
+
+_SAMPLE_FULL_TEXT = "Good morning everyone. " * 40
+
+
+class TestTranscriptPipelineLoadTickers:
+    def test_loads_inline_tickers(self, tmp_path):
+        from financial_scraper.transcripts.pipeline import TranscriptPipeline
+        cfg = _make_transcript_config(tmp_path, tickers=("AAPL", "MSFT"))
+        p = TranscriptPipeline(cfg)
+        assert p._load_tickers() == ["AAPL", "MSFT"]
+
+    def test_loads_tickers_from_file(self, tmp_path):
+        from financial_scraper.transcripts.pipeline import TranscriptPipeline
+        tf = tmp_path / "tickers.txt"
+        tf.write_text("NVDA\n# comment\nGOOG\n")
+        cfg = _make_transcript_config(tmp_path, tickers=(), tickers_file=tf)
+        p = TranscriptPipeline(cfg)
+        result = p._load_tickers()
+        assert "NVDA" in result
+        assert "GOOG" in result
+
+    def test_deduplicates_tickers(self, tmp_path):
+        from financial_scraper.transcripts.pipeline import TranscriptPipeline
+        cfg = _make_transcript_config(tmp_path, tickers=("AAPL", "AAPL", "MSFT"))
+        p = TranscriptPipeline(cfg)
+        result = p._load_tickers()
+        assert result.count("AAPL") == 1
+
+    def test_missing_tickers_file_returns_inline(self, tmp_path):
+        from financial_scraper.transcripts.pipeline import TranscriptPipeline
+        cfg = _make_transcript_config(tmp_path, tickers=("AAPL",),
+                                      tickers_file=tmp_path / "missing.txt")
+        p = TranscriptPipeline(cfg)
+        assert p._load_tickers() == ["AAPL"]
+
+
+class TestTranscriptPipelineRun:
+    def test_run_no_transcripts_found(self, tmp_path):
+        from financial_scraper.transcripts.pipeline import TranscriptPipeline
+        from unittest.mock import patch
+        cfg = _make_transcript_config(tmp_path)
+        p = TranscriptPipeline(cfg)
+        with patch("financial_scraper.transcripts.pipeline.discover_transcripts", return_value=[]):
+            p.run()
+        assert not (tmp_path / "out.parquet").exists()
+
+    def test_run_with_successful_extraction(self, tmp_path):
+        from financial_scraper.transcripts.pipeline import TranscriptPipeline
+        from unittest.mock import patch, MagicMock
+
+        result = TranscriptResult(
+            company="Apple", ticker="AAPL", quarter="Q1", year=2025,
+            date="2025-01-30", full_text=_SAMPLE_FULL_TEXT,
+        )
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.text = "<html><body>transcript</body></html>"
+
+        cfg = _make_transcript_config(tmp_path)
+        p = TranscriptPipeline(cfg)
+        with patch("financial_scraper.transcripts.pipeline.discover_transcripts", return_value=[_SAMPLE_INFO]):
+            with patch.object(p._session, "get", return_value=mock_resp):
+                with patch("financial_scraper.transcripts.pipeline.extract_transcript", return_value=result):
+                    with patch("financial_scraper.transcripts.pipeline.time.sleep"):
+                        p.run()
+
+        assert (tmp_path / "out.parquet").exists()
+
+    def test_run_fetch_failure(self, tmp_path):
+        from financial_scraper.transcripts.pipeline import TranscriptPipeline
+        from unittest.mock import patch
+        import requests as req
+
+        cfg = _make_transcript_config(tmp_path)
+        p = TranscriptPipeline(cfg)
+        with patch("financial_scraper.transcripts.pipeline.discover_transcripts", return_value=[_SAMPLE_INFO]):
+            with patch.object(p._session, "get", side_effect=req.RequestException("timeout")):
+                p.run()
+
+        assert not (tmp_path / "out.parquet").exists()
+
+    def test_run_http_error(self, tmp_path):
+        from financial_scraper.transcripts.pipeline import TranscriptPipeline
+        from unittest.mock import patch, MagicMock
+
+        mock_resp = MagicMock()
+        mock_resp.status_code = 403
+
+        cfg = _make_transcript_config(tmp_path)
+        p = TranscriptPipeline(cfg)
+        with patch("financial_scraper.transcripts.pipeline.discover_transcripts", return_value=[_SAMPLE_INFO]):
+            with patch.object(p._session, "get", return_value=mock_resp):
+                p.run()
+
+        assert not (tmp_path / "out.parquet").exists()
+
+    def test_run_with_no_tickers(self, tmp_path):
+        from financial_scraper.transcripts.pipeline import TranscriptPipeline
+        cfg = _make_transcript_config(tmp_path, tickers=())
+        p = TranscriptPipeline(cfg)
+        p.run()
+
+    def test_run_with_jsonl(self, tmp_path):
+        from financial_scraper.transcripts.pipeline import TranscriptPipeline
+        from unittest.mock import patch, MagicMock
+
+        result = TranscriptResult(
+            company="Apple", ticker="AAPL", quarter="Q1", year=2025,
+            date="2025-01-30", full_text=_SAMPLE_FULL_TEXT,
+        )
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.text = "<html><body>transcript</body></html>"
+
+        jsonl_path = tmp_path / "out.jsonl"
+        cfg = _make_transcript_config(tmp_path, jsonl_path=jsonl_path)
+        p = TranscriptPipeline(cfg)
+        with patch("financial_scraper.transcripts.pipeline.discover_transcripts", return_value=[_SAMPLE_INFO]):
+            with patch.object(p._session, "get", return_value=mock_resp):
+                with patch("financial_scraper.transcripts.pipeline.extract_transcript", return_value=result):
+                    with patch("financial_scraper.transcripts.pipeline.time.sleep"):
+                        p.run()
+
+        assert jsonl_path.exists()
+
+
+# ---------------------------------------------------------------------------
+# Discovery: _fetch_sitemap_urls and discover_transcripts
+# ---------------------------------------------------------------------------
+
+class TestFetchSitemapUrls:
+    def test_returns_loc_urls(self):
+        from unittest.mock import patch, MagicMock
+        sitemap_xml = """<?xml version="1.0" encoding="UTF-8"?>
+        <urlset>
+          <url><loc>https://www.fool.com/earnings/call-transcripts/2025/01/30/apple-aapl-q1-2025-earnings-call-transcript/</loc></url>
+          <url><loc>https://www.fool.com/some-other-article/</loc></url>
+        </urlset>"""
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.text = sitemap_xml
+
+        with patch("financial_scraper.transcripts.discovery.requests.get", return_value=mock_resp):
+            urls = _fetch_sitemap_urls(2025, 1)
+
+        assert len(urls) == 2
+        assert any("aapl-q1-2025" in u for u in urls)
+
+    def test_returns_empty_on_non_200(self):
+        from unittest.mock import patch, MagicMock
+        mock_resp = MagicMock()
+        mock_resp.status_code = 404
+
+        with patch("financial_scraper.transcripts.discovery.requests.get", return_value=mock_resp):
+            urls = _fetch_sitemap_urls(2025, 1)
+
+        assert urls == []
+
+    def test_returns_empty_on_request_exception(self):
+        from unittest.mock import patch
+        import requests as req
+
+        with patch("financial_scraper.transcripts.discovery.requests.get",
+                   side_effect=req.RequestException("timeout")):
+            urls = _fetch_sitemap_urls(2025, 1)
+
+        assert urls == []
+
+
+class TestDiscoverTranscripts:
+    def test_discovers_matching_ticker(self):
+        from unittest.mock import patch
+        sitemap_xml = """<?xml version="1.0" encoding="UTF-8"?>
+        <urlset>
+          <url><loc>https://www.fool.com/earnings/call-transcripts/2025/01/30/apple-aapl-q1-2025-earnings-call-transcript/</loc></url>
+          <url><loc>https://www.fool.com/earnings/call-transcripts/2025/04/25/apple-aapl-q2-2025-earnings-call-transcript/</loc></url>
+        </urlset>"""
+        from unittest.mock import MagicMock
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.text = sitemap_xml
+
+        with patch("financial_scraper.transcripts.discovery.requests.get", return_value=mock_resp):
+            results = discover_transcripts("AAPL", year=2025)
+
+        assert len(results) >= 1
+        assert all(r.ticker == "AAPL" for r in results)
+
+    def test_filters_by_quarter(self):
+        from unittest.mock import patch, MagicMock
+        sitemap_xml = """<?xml version="1.0" encoding="UTF-8"?>
+        <urlset>
+          <url><loc>https://www.fool.com/earnings/call-transcripts/2025/01/30/apple-aapl-q1-2025-earnings-call-transcript/</loc></url>
+          <url><loc>https://www.fool.com/earnings/call-transcripts/2025/04/25/apple-aapl-q2-2025-earnings-call-transcript/</loc></url>
+        </urlset>"""
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.text = sitemap_xml
+
+        with patch("financial_scraper.transcripts.discovery.requests.get", return_value=mock_resp):
+            results = discover_transcripts("AAPL", year=2025, quarters=("Q1",))
+
+        assert all(r.quarter == "Q1" for r in results)
+
+    def test_returns_empty_when_no_sitemaps(self):
+        from unittest.mock import patch
+        import requests as req
+
+        with patch("financial_scraper.transcripts.discovery.requests.get",
+                   side_effect=req.RequestException("down")):
+            results = discover_transcripts("AAPL", year=2025)
+
+        assert results == []
