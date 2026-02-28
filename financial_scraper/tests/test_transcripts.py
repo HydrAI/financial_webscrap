@@ -524,6 +524,111 @@ class TestTranscriptPipelineRun:
         assert jsonl_path.exists()
 
 
+class TestTranscriptPipelineConcurrent:
+    """Tests for parallel fetching via the `concurrent` config field."""
+
+    def _make_infos(self, n: int) -> list:
+        return [
+            TranscriptInfo(
+                url=f"https://www.fool.com/earnings/call-transcripts/2025/0{q}/aapl-q{q}-2025/",
+                ticker="AAPL",
+                quarter=f"Q{q}",
+                year=2025,
+                pub_date=f"2025-0{q}-15",
+            )
+            for q in range(1, n + 1)
+        ]
+
+    def _make_results(self, n: int) -> list:
+        return [
+            TranscriptResult(
+                company="Apple",
+                ticker="AAPL",
+                quarter=f"Q{q}",
+                year=2025,
+                date=f"2025-0{q}-15",
+                # Unique content so dedup doesn't drop records
+                full_text=f"Quarter {q} results. Revenue grew strongly. " * 20,
+            )
+            for q in range(1, n + 1)
+        ]
+
+    def test_all_records_written_with_concurrent_workers(self, tmp_path):
+        """With concurrent=3 and 3 transcripts, all 3 records are written."""
+        from financial_scraper.transcripts.pipeline import TranscriptPipeline
+        from unittest.mock import patch, MagicMock
+        import pyarrow.parquet as pq
+
+        infos = self._make_infos(3)
+        extract_results = self._make_results(3)
+        mock_resp = MagicMock(status_code=200, text="<html></html>")
+
+        cfg = _make_transcript_config(tmp_path, concurrent=3)
+        p = TranscriptPipeline(cfg)
+
+        with patch("financial_scraper.transcripts.pipeline.discover_transcripts", return_value=infos):
+            with patch.object(p._session, "get", return_value=mock_resp):
+                with patch("financial_scraper.transcripts.pipeline.extract_transcript",
+                           side_effect=extract_results):
+                    with patch("financial_scraper.transcripts.pipeline.time.sleep"):
+                        p.run()
+
+        table = pq.read_table(tmp_path / "out.parquet")
+        assert table.num_rows == 3
+
+    def test_partial_failures_dont_drop_successes(self, tmp_path):
+        """If one worker fails (HTTP error), the others still produce records."""
+        from financial_scraper.transcripts.pipeline import TranscriptPipeline
+        from unittest.mock import patch, MagicMock
+        import pyarrow.parquet as pq
+
+        infos = self._make_infos(3)
+        extract_results = self._make_results(3)
+
+        # First GET returns 404, the other two return 200
+        responses = [
+            MagicMock(status_code=404),
+            MagicMock(status_code=200, text="<html></html>"),
+            MagicMock(status_code=200, text="<html></html>"),
+        ]
+
+        cfg = _make_transcript_config(tmp_path, concurrent=3)
+        p = TranscriptPipeline(cfg)
+
+        with patch("financial_scraper.transcripts.pipeline.discover_transcripts", return_value=infos):
+            with patch.object(p._session, "get", side_effect=responses):
+                with patch("financial_scraper.transcripts.pipeline.extract_transcript",
+                           side_effect=extract_results[1:]):
+                    with patch("financial_scraper.transcripts.pipeline.time.sleep"):
+                        p.run()
+
+        table = pq.read_table(tmp_path / "out.parquet")
+        assert table.num_rows == 2
+
+    def test_concurrent_one_behaves_like_sequential(self, tmp_path):
+        """concurrent=1 produces the same output as the original sequential path."""
+        from financial_scraper.transcripts.pipeline import TranscriptPipeline
+        from unittest.mock import patch, MagicMock
+        import pyarrow.parquet as pq
+
+        infos = self._make_infos(2)
+        extract_results = self._make_results(2)
+        mock_resp = MagicMock(status_code=200, text="<html></html>")
+
+        cfg = _make_transcript_config(tmp_path, concurrent=1)
+        p = TranscriptPipeline(cfg)
+
+        with patch("financial_scraper.transcripts.pipeline.discover_transcripts", return_value=infos):
+            with patch.object(p._session, "get", return_value=mock_resp):
+                with patch("financial_scraper.transcripts.pipeline.extract_transcript",
+                           side_effect=extract_results):
+                    with patch("financial_scraper.transcripts.pipeline.time.sleep"):
+                        p.run()
+
+        table = pq.read_table(tmp_path / "out.parquet")
+        assert table.num_rows == 2
+
+
 # ---------------------------------------------------------------------------
 # Discovery: _fetch_sitemap_urls and discover_transcripts
 # ---------------------------------------------------------------------------

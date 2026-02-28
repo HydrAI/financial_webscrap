@@ -3,6 +3,7 @@
 import logging
 import time
 from collections import Counter
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
 import requests
@@ -109,63 +110,89 @@ class TranscriptPipeline:
     def _fetch_and_extract(
         self, ticker: str, infos: list[TranscriptInfo], stats: Counter
     ) -> list[dict]:
-        """Fetch transcript pages and extract content."""
-        records = []
+        """Fetch transcript pages concurrently and extract content.
 
-        for info in infos:
+        Worker threads handle HTTP GET + extraction (pure I/O, no shared state).
+        The main thread processes results: stats, checkpoint, dedup, record building.
+        """
+        session = self._session
+
+        def _fetch_one(info: TranscriptInfo):
+            """Worker: fetch and extract one transcript. Touches no shared state."""
             logger.info(f"  Fetching {info.quarter} {info.year}: {info.url}")
-
             try:
-                resp = self._session.get(info.url, timeout=30)
-                stats["fetched"] += 1
+                resp = session.get(info.url, timeout=30)
             except requests.RequestException as e:
                 logger.warning(f"  Failed to fetch {info.url}: {e}")
-                self._checkpoint.mark_url_failed(info.url)
-                stats["failed"] += 1
-                continue
+                return info, None, "request_error"
 
             if resp.status_code != 200:
                 logger.warning(f"  HTTP {resp.status_code} for {info.url}")
-                self._checkpoint.mark_url_failed(info.url)
-                stats["failed"] += 1
-                continue
+                return info, None, "http_error"
 
-            self._checkpoint.mark_url_fetched(info.url)
-
-            # Extract
             result = extract_transcript(resp.text)
             if result is None or not result.full_text:
                 logger.warning(f"  Extraction failed for {info.url}")
-                stats["failed"] += 1
-                continue
+                return info, None, "extract_error"
 
-            # Content dedup
-            if self._dedup.is_duplicate_content(result.full_text):
-                logger.info(f"  Duplicate content, skipping")
-                continue
+            # Polite delay per worker before signalling completion
+            time.sleep(1.0)
+            return info, result, "success"
 
-            self._dedup.mark_seen(info.url, result.full_text)
-            stats["extracted"] += 1
+        records = []
+        concurrent = max(1, self._config.concurrent)
 
-            # Build record (merged_by_year schema)
-            title = f"{ticker} {info.quarter} {info.year} Earnings Call Transcript"
-            snippet = (result.full_text[:300] + "...") if len(result.full_text) > 300 else result.full_text
-            source_file = f"{ticker}_transcript_{info.quarter}_{info.year}.parquet"
+        with ThreadPoolExecutor(max_workers=concurrent) as executor:
+            futures = {executor.submit(_fetch_one, info): info for info in infos}
+            for future in as_completed(futures):
+                try:
+                    info, result, event = future.result()
+                except Exception as e:
+                    info = futures[future]
+                    logger.error(f"  Unexpected error for {info.url}: {e}")
+                    stats["failed"] += 1
+                    continue
 
-            record = {
-                "company": ticker,
-                "title": title,
-                "link": info.url,
-                "snippet": snippet,
-                "date": result.date or info.pub_date,
-                "source": "fool.com",
-                "full_text": result.full_text,
-                "source_file": source_file,
-            }
-            records.append(record)
+                if event == "request_error":
+                    self._checkpoint.mark_url_failed(info.url)
+                    stats["failed"] += 1
+                    continue
 
-            # Polite delay between requests
-            time.sleep(1.5)
+                # HTTP GET completed (200 or not)
+                stats["fetched"] += 1
+
+                if event in ("http_error", "extract_error"):
+                    self._checkpoint.mark_url_failed(info.url)
+                    stats["failed"] += 1
+                    continue
+
+                # Successful extraction — shared state handled here (main thread only)
+                self._checkpoint.mark_url_fetched(info.url)
+
+                if self._dedup.is_duplicate_content(result.full_text):
+                    logger.info("  Duplicate content, skipping")
+                    continue
+
+                self._dedup.mark_seen(info.url, result.full_text)
+                stats["extracted"] += 1
+
+                title = f"{ticker} {info.quarter} {info.year} Earnings Call Transcript"
+                snippet = (
+                    (result.full_text[:300] + "...")
+                    if len(result.full_text) > 300
+                    else result.full_text
+                )
+                source_file = f"{ticker}_transcript_{info.quarter}_{info.year}.parquet"
+                records.append({
+                    "company": ticker,
+                    "title": title,
+                    "link": info.url,
+                    "snippet": snippet,
+                    "date": result.date or info.pub_date,
+                    "source": "fool.com",
+                    "full_text": result.full_text,
+                    "source_file": source_file,
+                })
 
         return records
 
