@@ -141,7 +141,7 @@ class TranscriptPipeline:
                     return info, None, "request_error"
 
                 if resp.status_code == 429:
-                    retry_after = int(resp.headers.get("Retry-After", 0))
+                    retry_after = min(int(resp.headers.get("Retry-After", 0)), 60)
                     wait = retry_after if retry_after > 0 else (10 * 2 ** attempt)
                     if attempt < 3:
                         logger.warning(
