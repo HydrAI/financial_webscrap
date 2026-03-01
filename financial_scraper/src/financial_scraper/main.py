@@ -289,28 +289,44 @@ def build_transcript_config(args):
     """Build TranscriptConfig from CLI args."""
     from .transcripts.config import TranscriptConfig
 
-    ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-    base = Path(args.output_dir) if args.output_dir else Path(".")
-    out_dir = base / ts
-    out_dir.mkdir(parents=True, exist_ok=True)
-
-    out_path = out_dir / f"transcripts_{ts}.parquet"
-    jsonl_path = out_dir / f"transcripts_{ts}.jsonl" if args.jsonl else None
+    explicit_output = getattr(args, "output", None)
+    if explicit_output:
+        # Stable path mode: always write to the same file (safe for --resume)
+        out_path = Path(explicit_output)
+        out_path.parent.mkdir(parents=True, exist_ok=True)
+        out_dir = out_path.parent
+        jsonl_path = out_path.with_suffix(".jsonl") if args.jsonl else None
+    else:
+        ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+        base = Path(args.output_dir) if args.output_dir else Path(".")
+        out_dir = base / ts
+        out_dir.mkdir(parents=True, exist_ok=True)
+        out_path = out_dir / f"transcripts_{ts}.parquet"
+        jsonl_path = out_dir / f"transcripts_{ts}.jsonl" if args.jsonl else None
 
     tickers = tuple(t.upper() for t in args.tickers) if args.tickers else ()
     quarters = tuple(args.quarters) if args.quarters else ()
+
+    # Resolve from_year / to_year for range mode
+    from_year = getattr(args, "from_year", None)
+    to_year = getattr(args, "to_year", None)
+    if from_year is not None and to_year is None:
+        to_year = datetime.now().year
 
     return TranscriptConfig(
         tickers=tickers,
         tickers_file=Path(args.tickers_file) if args.tickers_file else None,
         year=args.year,
         quarters=quarters,
+        from_year=from_year,
+        to_year=to_year,
         concurrent=args.concurrent,
         output_dir=out_dir,
         output_path=out_path,
         jsonl_path=jsonl_path,
         checkpoint_file=Path(args.checkpoint),
         resume=args.resume,
+        fmp_api_key=getattr(args, "fmp_api_key", ""),
     )
 
 
@@ -320,29 +336,54 @@ def _add_transcript_args(p: argparse.ArgumentParser):
     p.add_argument("--tickers", nargs="+", help="Ticker symbols (e.g. AAPL MSFT NVDA)")
     p.add_argument("--tickers-file", default=None, help="File with tickers (one per line)")
 
-    # Filters
+    # Filters — single year
     p.add_argument("--year", type=int, default=None, help="Fiscal year (default: current year)")
     p.add_argument("--quarters", nargs="+", choices=["Q1", "Q2", "Q3", "Q4"],
                    help="Filter to specific quarters")
+
+    # Filters — year range (mutually exclusive with --year)
+    p.add_argument("--from-year", type=int, default=None,
+                   help="First fiscal year for bulk history download (e.g. 2018)")
+    p.add_argument("--to-year", type=int, default=None,
+                   help="Last fiscal year for bulk history download (default: current year)")
 
     # Fetch
     p.add_argument("--concurrent", type=int, default=5)
 
     # Store
+    p.add_argument("--output", default=None,
+                   help="Explicit .parquet output path — stable across --resume sessions")
     p.add_argument("--output-dir", default=None, help="Base dir for output (default: cwd)")
     p.add_argument("--jsonl", action="store_true", help="Also write JSONL output")
     p.add_argument("--checkpoint", default=".transcript_checkpoint.json")
     p.add_argument("--resume", action="store_true")
     p.add_argument("--reset", action="store_true", help="Delete checkpoint before running")
 
+    # Fallback source
+    p.add_argument(
+        "--fmp-api-key", default="",
+        help="Financial Modeling Prep API key for fallback transcripts (or set FMP_API_KEY env var)",
+    )
+
 
 def _run_transcripts(args):
     """Run the transcripts pipeline."""
     from .transcripts.pipeline import TranscriptPipeline
 
+    logger = logging.getLogger(__name__)
+
     if not args.tickers and not args.tickers_file:
-        logger = logging.getLogger(__name__)
         logger.error("Must provide --tickers or --tickers-file")
+        sys.exit(1)
+
+    from_year = getattr(args, "from_year", None)
+    if from_year is not None and args.year is not None:
+        logger.error("--from-year and --year are mutually exclusive")
+        sys.exit(1)
+
+    to_year = getattr(args, "to_year", None)
+    if to_year is not None and from_year is None:
+        logger.error("--to-year requires --from-year")
         sys.exit(1)
 
     # Handle --reset

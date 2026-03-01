@@ -11,6 +11,7 @@ import requests
 from .config import TranscriptConfig
 from .discovery import discover_transcripts, discover_transcripts_range, TranscriptInfo
 from .extract import extract_transcript, TranscriptResult
+from .sources.fmp import FMPSource
 from ..store.dedup import Deduplicator
 from ..store.output import ParquetWriter, JSONLWriter, _parse_date
 from ..checkpoint import Checkpoint
@@ -34,6 +35,9 @@ class TranscriptPipeline:
         self._jsonl = JSONLWriter(config.jsonl_path) if config.jsonl_path else None
         self._session = requests.Session()
         self._session.headers.update({"User-Agent": USER_AGENT})
+        self._fmp = FMPSource(api_key=config.fmp_api_key)
+        if self._fmp.available:
+            logger.info("FMP fallback source enabled")
 
     def run(self):
         """Execute the full transcript pipeline (synchronous)."""
@@ -129,10 +133,18 @@ class TranscriptPipeline:
         The main thread processes results: stats, checkpoint, dedup, record building.
         """
         session = self._session
+        fmp = self._fmp
 
         def _fetch_one(info: TranscriptInfo):
-            """Worker: fetch and extract one transcript. Touches no shared state."""
+            """Worker: fetch and extract one transcript. Touches no shared state.
+
+            Strategy:
+              1. Try fool.com with up to 4 attempts (exponential backoff on 429).
+              2. On permanent HTTP failure, try FMP as fallback if configured.
+            """
             logger.info(f"  Fetching {info.quarter} {info.year}: {info.url}")
+            http_failed = False
+
             for attempt in range(4):
                 try:
                     resp = session.get(info.url, timeout=30)
@@ -150,22 +162,36 @@ class TranscriptPipeline:
                         )
                         time.sleep(wait)
                         continue
-                    # Final attempt also 429 — treat as http_error
                     logger.warning(f"  HTTP 429 for {info.url} (max retries)")
-                    return info, None, "http_error"
+                    http_failed = True
+                    break
 
                 if resp.status_code != 200:
                     logger.warning(f"  HTTP {resp.status_code} for {info.url}")
-                    return info, None, "http_error"
+                    http_failed = True
+                    break
 
                 result = extract_transcript(resp.text)
                 if result is None or not result.full_text:
                     logger.warning(f"  Extraction failed for {info.url}")
                     return info, None, "extract_error"
 
-                # Polite delay per worker before signalling completion
                 time.sleep(1.0)
                 return info, result, "success"
+
+            # Fool.com permanently failed — try FMP fallback
+            if http_failed and fmp.available:
+                logger.info(
+                    f"  Trying FMP fallback for {info.ticker} {info.quarter} {info.year}"
+                )
+                fmp_result = fmp.get_transcript(
+                    info.ticker, info.quarter, info.year, session
+                )
+                if fmp_result and fmp_result.full_text:
+                    time.sleep(1.0)
+                    return info, fmp_result, "success"
+
+            return info, None, "http_error"
 
         records = []
         concurrent = max(1, self._config.concurrent)
