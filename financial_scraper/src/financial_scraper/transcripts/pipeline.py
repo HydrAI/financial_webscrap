@@ -9,7 +9,7 @@ from pathlib import Path
 import requests
 
 from .config import TranscriptConfig
-from .discovery import discover_transcripts, TranscriptInfo
+from .discovery import discover_transcripts, discover_transcripts_range, TranscriptInfo
 from .extract import extract_transcript, TranscriptResult
 from ..store.dedup import Deduplicator
 from ..store.output import ParquetWriter, JSONLWriter, _parse_date
@@ -52,19 +52,32 @@ class TranscriptPipeline:
 
         logger.info(f"Processing {len(tickers)} ticker(s): {', '.join(tickers)}")
 
-        # 3. Discover + fetch + extract per ticker
+        # 3. Discovery — bulk (range mode) or per-ticker (single-year mode)
+        if self._config.from_year is not None:
+            bulk = discover_transcripts_range(
+                tickers,
+                from_year=self._config.from_year,
+                to_year=self._config.to_year,  # guaranteed set by build_transcript_config
+                quarters=self._config.quarters,
+            )
+        else:
+            bulk = None
+
         total_records = 0
         stats: Counter = Counter()
 
         for ti, ticker in enumerate(tickers):
             logger.info(f"\n[{ti+1}/{len(tickers)}] {ticker}")
 
-            # Discovery
-            infos = discover_transcripts(
-                ticker,
-                year=self._config.year,
-                quarters=self._config.quarters,
-            )
+            # Discovery (range mode pre-computed; single-year fetched per ticker)
+            if bulk is not None:
+                infos = bulk.get(ticker, [])
+            else:
+                infos = discover_transcripts(
+                    ticker,
+                    year=self._config.year,
+                    quarters=self._config.quarters,
+                )
             if not infos:
                 logger.warning(f"  No transcripts found for {ticker}")
                 continue
@@ -120,24 +133,39 @@ class TranscriptPipeline:
         def _fetch_one(info: TranscriptInfo):
             """Worker: fetch and extract one transcript. Touches no shared state."""
             logger.info(f"  Fetching {info.quarter} {info.year}: {info.url}")
-            try:
-                resp = session.get(info.url, timeout=30)
-            except requests.RequestException as e:
-                logger.warning(f"  Failed to fetch {info.url}: {e}")
-                return info, None, "request_error"
+            for attempt in range(4):
+                try:
+                    resp = session.get(info.url, timeout=30)
+                except requests.RequestException as e:
+                    logger.warning(f"  Failed to fetch {info.url}: {e}")
+                    return info, None, "request_error"
 
-            if resp.status_code != 200:
-                logger.warning(f"  HTTP {resp.status_code} for {info.url}")
-                return info, None, "http_error"
+                if resp.status_code == 429:
+                    retry_after = int(resp.headers.get("Retry-After", 0))
+                    wait = retry_after if retry_after > 0 else (10 * 2 ** attempt)
+                    if attempt < 3:
+                        logger.warning(
+                            f"  HTTP 429 for {info.url} (attempt {attempt+1}/4), "
+                            f"backing off {wait}s"
+                        )
+                        time.sleep(wait)
+                        continue
+                    # Final attempt also 429 — treat as http_error
+                    logger.warning(f"  HTTP 429 for {info.url} (max retries)")
+                    return info, None, "http_error"
 
-            result = extract_transcript(resp.text)
-            if result is None or not result.full_text:
-                logger.warning(f"  Extraction failed for {info.url}")
-                return info, None, "extract_error"
+                if resp.status_code != 200:
+                    logger.warning(f"  HTTP {resp.status_code} for {info.url}")
+                    return info, None, "http_error"
 
-            # Polite delay per worker before signalling completion
-            time.sleep(1.0)
-            return info, result, "success"
+                result = extract_transcript(resp.text)
+                if result is None or not result.full_text:
+                    logger.warning(f"  Extraction failed for {info.url}")
+                    return info, None, "extract_error"
+
+                # Polite delay per worker before signalling completion
+                time.sleep(1.0)
+                return info, result, "success"
 
         records = []
         concurrent = max(1, self._config.concurrent)

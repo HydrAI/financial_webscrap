@@ -2,6 +2,7 @@
 
 import json
 import os
+import time
 from pathlib import Path
 
 
@@ -31,7 +32,20 @@ class Checkpoint:
         tmp = self.path.with_suffix(".tmp")
         with open(tmp, "w") as f:
             json.dump(data, f)
-        os.replace(tmp, self.path)
+        # Windows: os.replace can fail if target is briefly locked (e.g. antivirus).
+        for attempt in range(5):
+            try:
+                os.replace(tmp, self.path)
+                return
+            except PermissionError:
+                if attempt < 4:
+                    time.sleep(0.2 * (attempt + 1))
+        # Last resort: direct write (non-atomic but avoids crash)
+        self.path.write_text(tmp.read_text(encoding="utf-8"), encoding="utf-8")
+        try:
+            tmp.unlink()
+        except OSError:
+            pass
 
     def load(self):
         if not self.path.exists():
