@@ -58,11 +58,13 @@ class TranscriptPipeline:
 
         # 3. Discovery — bulk (range mode) or per-ticker (single-year mode)
         if self._config.from_year is not None:
+            cache_path = self._config.checkpoint_file.with_name("discovery_cache.json")
             bulk = discover_transcripts_range(
                 tickers,
                 from_year=self._config.from_year,
                 to_year=self._config.to_year,  # guaranteed set by build_transcript_config
                 quarters=self._config.quarters,
+                cache_path=cache_path,
             )
         else:
             bulk = None

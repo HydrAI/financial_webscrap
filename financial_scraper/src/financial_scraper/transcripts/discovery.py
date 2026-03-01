@@ -1,10 +1,12 @@
 """Discover earnings call transcript URLs from Motley Fool sitemaps."""
 
+import json
 import logging
 import re
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from dataclasses import dataclass
+from dataclasses import dataclass, asdict
 from datetime import datetime
+from pathlib import Path
 
 import requests
 
@@ -173,24 +175,40 @@ def discover_transcripts_range(
     from_year: int,
     to_year: int,
     quarters: tuple[str, ...] = (),
-    sitemap_workers: int = 4,
+    sitemap_workers: int = 1,
+    cache_path: Path | None = None,
 ) -> dict[str, list[TranscriptInfo]]:
     """Discover transcripts for multiple tickers across a year range.
 
     Scans each monthly sitemap exactly once, matching all tickers in a single
-    pass. This is O(months) instead of O(tickers × years × months), making it
-    the correct function for bulk / all-history downloads.
+    pass. Results are saved to cache_path (if given) so that restarts can skip
+    the expensive sitemap scan entirely.
 
     Args:
         tickers: Ticker symbols to search for.
         from_year: First fiscal year to include (inclusive).
         to_year: Last fiscal year to include (inclusive).
         quarters: Filter to specific quarters. Empty = all quarters.
-        sitemap_workers: Parallel sitemap fetch threads (default: 10).
+        sitemap_workers: Parallel sitemap fetch threads (default: 1).
+        cache_path: Optional path to save/load discovery results as JSON.
 
     Returns:
         Dict mapping ticker → sorted list of TranscriptInfo.
     """
+    # --- Load from cache if available ---
+    if cache_path and Path(cache_path).exists():
+        logger.info(f"Loading discovery cache from {cache_path}")
+        try:
+            with open(cache_path, "r", encoding="utf-8") as f:
+                raw = json.load(f)
+            result: dict[str, list[TranscriptInfo]] = {}
+            for ticker, items in raw.items():
+                result[ticker] = [TranscriptInfo(**item) for item in items]
+            total = sum(len(v) for v in result.values())
+            logger.info(f"Discovery cache loaded: {total} transcript(s) across {len(result)} ticker(s)")
+            return result
+        except Exception as e:
+            logger.warning(f"Failed to load discovery cache ({e}), re-scanning sitemaps")
     now = datetime.now()
     ticker_upper_set = {t.upper() for t in tickers}
     ticker_lower_set = {t.lower() for t in tickers}
@@ -274,4 +292,18 @@ def discover_transcripts_range(
             logger.info(f"  {ticker}: 0 transcripts found")
 
     logger.info(f"Bulk discovery complete: {total} total transcript(s)")
+
+    # --- Save cache ---
+    if cache_path and total > 0:
+        try:
+            Path(cache_path).parent.mkdir(parents=True, exist_ok=True)
+            with open(cache_path, "w", encoding="utf-8") as f:
+                json.dump(
+                    {ticker: [asdict(info) for info in infos] for ticker, infos in per_ticker.items()},
+                    f,
+                )
+            logger.info(f"Discovery cache saved to {cache_path}")
+        except Exception as e:
+            logger.warning(f"Failed to save discovery cache: {e}")
+
     return per_ticker
