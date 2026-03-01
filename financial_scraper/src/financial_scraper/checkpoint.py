@@ -1,16 +1,41 @@
-"""Track progress for resume capability."""
+"""Track progress for resume capability.
 
-import json
+Supports interval-based saves to reduce I/O, and uses orjson for faster
+serialization when available.
+"""
+
+import logging
 import os
 import time
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
+
+# Use orjson for faster JSON when available, fallback to stdlib json
+try:
+    import orjson
+
+    def _json_dumps(data) -> bytes:
+        return orjson.dumps(data)
+
+    def _json_loads(raw: bytes | str):
+        return orjson.loads(raw)
+
+except ImportError:
+    import json as _json
+
+    def _json_dumps(data) -> bytes:  # type: ignore[misc]
+        return _json.dumps(data).encode("utf-8")
+
+    def _json_loads(raw: bytes | str):  # type: ignore[misc]
+        return _json.loads(raw)
 
 
 class Checkpoint:
     """Saves after each completed query. Atomic writes."""
 
     def __init__(self, path: Path):
-        self.path = Path(path)
+        self.path = Path(path).resolve()
         self.completed_queries: set[str] = set()
         self.fetched_urls: set[str] = set()
         self.failed_urls: dict[str, int] = {}
@@ -21,6 +46,7 @@ class Checkpoint:
             "failed_fetches": 0,
             "failed_extractions": 0,
         }
+        self._last_save_time: float = 0.0
 
     def save(self):
         data = {
@@ -30,28 +56,46 @@ class Checkpoint:
             "stats": self.stats,
         }
         tmp = self.path.with_suffix(".tmp")
-        with open(tmp, "w") as f:
-            json.dump(data, f)
+        with open(tmp, "wb") as f:
+            f.write(_json_dumps(data))
+            f.flush()
+            os.fsync(f.fileno())
         # Windows: os.replace can fail if target is briefly locked (e.g. antivirus).
         for attempt in range(5):
             try:
                 os.replace(tmp, self.path)
+                self._last_save_time = time.monotonic()
+                logger.debug(
+                    "Checkpoint saved: %d fetched, %d failed",
+                    len(self.fetched_urls), len(self.failed_urls),
+                )
                 return
-            except PermissionError:
+            except OSError:
                 if attempt < 4:
                     time.sleep(0.2 * (attempt + 1))
         # Last resort: direct write (non-atomic but avoids crash)
-        self.path.write_text(tmp.read_text(encoding="utf-8"), encoding="utf-8")
+        self.path.write_bytes(tmp.read_bytes())
+        self._last_save_time = time.monotonic()
+        logger.debug(
+            "Checkpoint saved (fallback): %d fetched, %d failed",
+            len(self.fetched_urls), len(self.failed_urls),
+        )
         try:
             tmp.unlink()
         except OSError:
             pass
 
+    def save_if_due(self, interval_seconds: int = 300):
+        """Save only if *interval_seconds* have elapsed since the last save."""
+        now = time.monotonic()
+        if now - self._last_save_time >= interval_seconds:
+            self.save()
+
     def load(self):
         if not self.path.exists():
             return
-        with open(self.path) as f:
-            data = json.load(f)
+        raw = self.path.read_bytes()
+        data = _json_loads(raw)
         self.completed_queries = set(data.get("completed_queries", []))
         self.fetched_urls = set(data.get("fetched_urls", []))
         self.failed_urls = data.get("failed_urls", {})
