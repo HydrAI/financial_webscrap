@@ -106,13 +106,30 @@ class ParquetWriter:
         table = pa.Table.from_pandas(df, schema=SCHEMA, preserve_index=False)
 
         if self._path.exists():
-            existing = pq.read_table(self._path)
+            existing = self._read_with_retry(self._path)
             combined = pa.concat_tables([existing, table], promote_options="permissive")
-            pq.write_table(combined, self._path, compression="snappy")
-            logger.info(f"Appended {len(records)} rows to {self._path} (total: {len(combined)})")
         else:
-            pq.write_table(table, self._path, compression="snappy")
-            logger.info(f"Created {self._path} with {len(records)} rows")
+            combined = table
+
+        # Atomic write: write to .tmp then replace
+        tmp = self._path.with_suffix(".parquet.tmp")
+        pq.write_table(combined, tmp, compression="snappy")
+        os.replace(tmp, self._path)
+        logger.info(f"Appended {len(records)} rows to {self._path} (total: {len(combined)})")
+
+    @staticmethod
+    def _read_with_retry(path: Path, attempts: int = 3) -> pa.Table:
+        """Read parquet with retries for transient Windows file locks."""
+        import time
+        for attempt in range(attempts):
+            try:
+                return pq.read_table(path)
+            except (OSError, pa.ArrowInvalid) as e:
+                if attempt < attempts - 1:
+                    logger.warning("Parquet read failed (attempt %d/%d): %s", attempt + 1, attempts, e)
+                    time.sleep(1.0 * (attempt + 1))
+                else:
+                    raise
 
 
 class JSONLWriter:

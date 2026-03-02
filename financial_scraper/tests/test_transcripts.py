@@ -161,7 +161,7 @@ MOCK_TRANSCRIPT_LIVE = """
   <p><strong>Kevan Parekh</strong> -- <em>Chief Financial Officer</em></p>
   <p>Thank you, Tim. Revenue was up 5% year over year driven by strong iPhone demand.</p>
 
-  <h2>Questions & Answers:</h2>
+  <h2>Questions &amp; Answers:</h2>
   <p><strong>Operator</strong></p>
   <p>We will now begin the question-and-answer session.</p>
   <p><strong>Erik Woodring</strong> -- <em>Analyst</em></p>
@@ -298,10 +298,13 @@ class TestExtractSpeakersFromText:
 
 
 class TestExtractSpeakersFromElements:
-    """HTML-based speaker extraction (live Motley Fool format)."""
+    """HTML-based speaker extraction (live Motley Fool format).
+
+    Uses lxml elements (migrated from BeautifulSoup).
+    """
 
     def test_extracts_from_strong_tags(self):
-        from bs4 import BeautifulSoup
+        from lxml import html as lxml_html
         html = """
         <div>
           <p><strong>Tim Cook</strong> -- <em>CEO</em></p>
@@ -310,47 +313,51 @@ class TestExtractSpeakersFromElements:
           <p>Thank you, Tim.</p>
         </div>
         """
-        soup = BeautifulSoup(html, "lxml")
-        elements = list(soup.find("div").children)
-        tags = [el for el in elements if hasattr(el, "name")]
-        speakers = _extract_speakers_from_elements(tags)
+        doc = lxml_html.fromstring(html)
+        divs = doc.cssselect("div")
+        div = divs[0] if divs else doc
+        elements = list(div)
+        speakers = _extract_speakers_from_elements(elements)
         assert "Tim Cook" in speakers
         assert "Luca Maestri" in speakers
 
     def test_ignores_long_paragraphs(self):
-        from bs4 import BeautifulSoup
+        from lxml import html as lxml_html
         html = """
         <div>
           <p><strong>We've</strong> announced that we're going to open four new stores there. We also -- the iPhone was the top-selling model in all regions this quarter.</p>
         </div>
         """
-        soup = BeautifulSoup(html, "lxml")
-        elements = list(soup.find("div").children)
-        tags = [el for el in elements if hasattr(el, "name")]
-        speakers = _extract_speakers_from_elements(tags)
+        doc = lxml_html.fromstring(html)
+        divs = doc.cssselect("div")
+        div = divs[0] if divs else doc
+        elements = list(div)
+        speakers = _extract_speakers_from_elements(elements)
         assert len(speakers) == 0
 
     def test_operator_extracted(self):
-        from bs4 import BeautifulSoup
+        from lxml import html as lxml_html
         html = '<div><p><strong>Operator</strong></p></div>'
-        soup = BeautifulSoup(html, "lxml")
-        tags = [el for el in soup.find("div").children if hasattr(el, "name")]
-        speakers = _extract_speakers_from_elements(tags)
+        doc = lxml_html.fromstring(html)
+        divs = doc.cssselect("div")
+        div = divs[0] if divs else doc
+        elements = list(div)
+        speakers = _extract_speakers_from_elements(elements)
         assert "Operator" in speakers
 
 
 class TestExtractJsonLD:
     def test_extracts_news_article(self):
-        from bs4 import BeautifulSoup
-        soup = BeautifulSoup(MOCK_TRANSCRIPT_OLD, "lxml")
-        data = _extract_json_ld(soup)
+        from lxml import html as lxml_html
+        doc = lxml_html.fromstring(MOCK_TRANSCRIPT_OLD)
+        data = _extract_json_ld(doc)
         assert data["@type"] == "NewsArticle"
         assert "Apple" in data["headline"]
 
     def test_no_jsonld_returns_empty(self):
-        from bs4 import BeautifulSoup
-        soup = BeautifulSoup("<html><body></body></html>", "lxml")
-        data = _extract_json_ld(soup)
+        from lxml import html as lxml_html
+        doc = lxml_html.fromstring("<html><body></body></html>")
+        data = _extract_json_ld(doc)
         assert data == {}
 
 
@@ -716,3 +723,223 @@ class TestDiscoverTranscripts:
             results = discover_transcripts("AAPL", year=2025)
 
         assert results == []
+
+
+# ---------------------------------------------------------------------------
+# discover_transcripts_range
+# ---------------------------------------------------------------------------
+
+class TestDiscoverTranscriptsRange:
+    """Tests for bulk multi-ticker, multi-year discovery."""
+
+    # Two tickers x two years worth of URLs in a single sitemap response
+    _SITEMAP = """<?xml version="1.0" encoding="UTF-8"?>
+    <urlset>
+      <url><loc>https://www.fool.com/earnings/call-transcripts/2022/01/28/apple-aapl-q1-2022-earnings-call-transcript/</loc></url>
+      <url><loc>https://www.fool.com/earnings/call-transcripts/2022/04/29/apple-aapl-q2-2022-earnings-call-transcript/</loc></url>
+      <url><loc>https://www.fool.com/earnings/call-transcripts/2023/01/27/apple-aapl-q1-2023-earnings-call-transcript/</loc></url>
+      <url><loc>https://www.fool.com/earnings/call-transcripts/2022/07/27/microsoft-msft-q4-2022-earnings-call-transcript/</loc></url>
+      <url><loc>https://www.fool.com/some-other-article/</loc></url>
+    </urlset>"""
+
+    def _patched_sitemap(self):
+        from unittest.mock import MagicMock
+        mock_resp = MagicMock(status_code=200, text=self._SITEMAP)
+        return mock_resp
+
+    def test_returns_dict_keyed_by_ticker(self):
+        from financial_scraper.transcripts.discovery import discover_transcripts_range
+        from unittest.mock import patch
+
+        with patch("financial_scraper.transcripts.discovery.requests.get",
+                   return_value=self._patched_sitemap()):
+            result = discover_transcripts_range(["AAPL", "MSFT"], from_year=2022, to_year=2023)
+
+        assert "AAPL" in result
+        assert "MSFT" in result
+
+    def test_finds_transcripts_for_both_tickers(self):
+        from financial_scraper.transcripts.discovery import discover_transcripts_range
+        from unittest.mock import patch
+
+        with patch("financial_scraper.transcripts.discovery.requests.get",
+                   return_value=self._patched_sitemap()):
+            result = discover_transcripts_range(["AAPL", "MSFT"], from_year=2022, to_year=2023)
+
+        assert len(result["AAPL"]) >= 2  # Q1 2022, Q2 2022, Q1 2023
+        assert len(result["MSFT"]) >= 1  # Q4 2022
+        assert all(r.ticker == "AAPL" for r in result["AAPL"])
+        assert all(r.ticker == "MSFT" for r in result["MSFT"])
+
+    def test_year_range_filter(self):
+        from financial_scraper.transcripts.discovery import discover_transcripts_range
+        from unittest.mock import patch
+
+        with patch("financial_scraper.transcripts.discovery.requests.get",
+                   return_value=self._patched_sitemap()):
+            result = discover_transcripts_range(["AAPL"], from_year=2023, to_year=2023)
+
+        # Only 2023 transcripts should be returned
+        assert all(r.year == 2023 for r in result["AAPL"])
+
+    def test_quarter_filter(self):
+        from financial_scraper.transcripts.discovery import discover_transcripts_range
+        from unittest.mock import patch
+
+        with patch("financial_scraper.transcripts.discovery.requests.get",
+                   return_value=self._patched_sitemap()):
+            result = discover_transcripts_range(
+                ["AAPL"], from_year=2022, to_year=2023, quarters=("Q1",)
+            )
+
+        assert all(r.quarter == "Q1" for r in result["AAPL"])
+
+    def test_results_sorted_by_year_then_quarter(self):
+        from financial_scraper.transcripts.discovery import discover_transcripts_range
+        from unittest.mock import patch
+
+        with patch("financial_scraper.transcripts.discovery.requests.get",
+                   return_value=self._patched_sitemap()):
+            result = discover_transcripts_range(["AAPL"], from_year=2022, to_year=2023)
+
+        infos = result["AAPL"]
+        assert infos == sorted(infos, key=lambda t: (t.year, t.quarter))
+
+    def test_no_duplicates_across_sitemaps(self):
+        from financial_scraper.transcripts.discovery import discover_transcripts_range
+        from unittest.mock import patch
+
+        # Same sitemap returned for every month — URLs should be deduplicated
+        with patch("financial_scraper.transcripts.discovery.requests.get",
+                   return_value=self._patched_sitemap()):
+            result = discover_transcripts_range(["AAPL"], from_year=2022, to_year=2023)
+
+        urls = [r.url for r in result["AAPL"]]
+        assert len(urls) == len(set(urls))
+
+    def test_empty_result_for_unknown_ticker(self):
+        from financial_scraper.transcripts.discovery import discover_transcripts_range
+        from unittest.mock import patch
+
+        with patch("financial_scraper.transcripts.discovery.requests.get",
+                   return_value=self._patched_sitemap()):
+            result = discover_transcripts_range(["NVDA"], from_year=2022, to_year=2023)
+
+        assert result["NVDA"] == []
+
+    def test_sitemap_error_does_not_crash(self):
+        from financial_scraper.transcripts.discovery import discover_transcripts_range
+        from unittest.mock import patch, MagicMock
+
+        # First call raises, subsequent calls succeed
+        error_resp = MagicMock(side_effect=Exception("network error"))
+        ok_resp = MagicMock(status_code=200, text=self._SITEMAP)
+
+        with patch("financial_scraper.transcripts.discovery._fetch_sitemap_urls",
+                   side_effect=[[], [], []]):  # all sitemaps return empty
+            result = discover_transcripts_range(["AAPL"], from_year=2022, to_year=2022)
+
+        assert result["AAPL"] == []
+
+
+# ---------------------------------------------------------------------------
+# Pipeline range mode integration
+# ---------------------------------------------------------------------------
+
+def _make_range_config(tmp_path, **overrides):
+    defaults = {
+        "tickers": ("AAPL", "MSFT"),
+        "tickers_file": None,
+        "year": None,
+        "quarters": (),
+        "from_year": 2022,
+        "to_year": 2023,
+        "concurrent": 1,
+        "output_dir": tmp_path,
+        "output_path": tmp_path / "out.parquet",
+        "jsonl_path": None,
+        "checkpoint_file": tmp_path / "cp.json",
+        "resume": False,
+    }
+    defaults.update(overrides)
+    return TranscriptConfig(**defaults)
+
+
+class TestTranscriptPipelineRangeMode:
+    """Integration tests for from_year / to_year bulk discovery mode."""
+
+    def test_range_mode_uses_bulk_discovery(self, tmp_path):
+        """Pipeline calls discover_transcripts_range (not discover_transcripts) in range mode."""
+        from financial_scraper.transcripts.pipeline import TranscriptPipeline
+        from unittest.mock import patch, MagicMock
+
+        bulk = {
+            "AAPL": [TranscriptInfo(
+                url="https://www.fool.com/earnings/call-transcripts/2022/01/28/apple-aapl-q1-2022/",
+                ticker="AAPL", quarter="Q1", year=2022, pub_date="2022-01-28",
+            )],
+            "MSFT": [],
+        }
+
+        result = TranscriptResult(
+            company="Apple", ticker="AAPL", quarter="Q1", year=2022,
+            date="2022-01-28", full_text="Strong results in our first quarter. " * 30,
+        )
+        mock_resp = MagicMock(status_code=200, text="<html></html>")
+
+        cfg = _make_range_config(tmp_path)
+        p = TranscriptPipeline(cfg)
+
+        with patch("financial_scraper.transcripts.pipeline.discover_transcripts_range",
+                   return_value=bulk) as mock_range:
+            with patch("financial_scraper.transcripts.pipeline.discover_transcripts") as mock_single:
+                with patch.object(p._session, "get", return_value=mock_resp):
+                    with patch("financial_scraper.transcripts.pipeline.extract_transcript",
+                               return_value=result):
+                        with patch("financial_scraper.transcripts.pipeline.time.sleep"):
+                            p.run()
+
+        mock_range.assert_called_once()
+        mock_single.assert_not_called()
+
+    def test_range_mode_writes_records(self, tmp_path):
+        """Records from range mode are written to parquet."""
+        from financial_scraper.transcripts.pipeline import TranscriptPipeline
+        from unittest.mock import patch, MagicMock
+        import pyarrow.parquet as pq
+
+        bulk = {
+            "AAPL": [
+                TranscriptInfo(
+                    url=f"https://www.fool.com/earnings/call-transcripts/202{y}/01/aapl-q1-202{y}/",
+                    ticker="AAPL", quarter="Q1", year=int(f"202{y}"),
+                    pub_date=f"202{y}-01-28",
+                )
+                for y in range(2, 4)
+            ],
+            "MSFT": [],
+        }
+
+        extract_results = [
+            TranscriptResult(
+                company="Apple", ticker="AAPL", quarter="Q1", year=int(f"202{y}"),
+                date=f"202{y}-01-28",
+                full_text=f"FY202{y} Q1 results were strong. Revenue grew. " * 20,
+            )
+            for y in range(2, 4)
+        ]
+
+        mock_resp = MagicMock(status_code=200, text="<html></html>")
+        cfg = _make_range_config(tmp_path)
+        p = TranscriptPipeline(cfg)
+
+        with patch("financial_scraper.transcripts.pipeline.discover_transcripts_range",
+                   return_value=bulk):
+            with patch.object(p._session, "get", return_value=mock_resp):
+                with patch("financial_scraper.transcripts.pipeline.extract_transcript",
+                           side_effect=extract_results):
+                    with patch("financial_scraper.transcripts.pipeline.time.sleep"):
+                        p.run()
+
+        table = pq.read_table(tmp_path / "out.parquet")
+        assert table.num_rows == 2

@@ -1,5 +1,12 @@
-"""Browser fingerprint profiles for anti-detection."""
+"""Browser fingerprint profiles for anti-detection.
 
+Static profiles are used as fallbacks. When ``browserforge`` is installed,
+``generate_headers()`` produces dynamic, version-current headers that are
+much harder to fingerprint.
+"""
+
+import random
+import urllib.parse
 from dataclasses import dataclass
 
 
@@ -118,5 +125,40 @@ ALL_FINGERPRINTS = [CHROME_WINDOWS, CHROME_MAC, FIREFOX_WINDOWS, SAFARI_MAC, EDG
 
 
 def get_fingerprint_for_domain(domain: str) -> BrowserFingerprint:
-    """Deterministic: hash(domain) -> consistent profile per domain."""
-    return ALL_FINGERPRINTS[hash(domain) % len(ALL_FINGERPRINTS)]
+    """Return a random fingerprint (not deterministic per-domain).
+
+    Using a random fingerprint per-request avoids fingerprint correlation
+    across requests to the same domain.
+    """
+    return random.choice(ALL_FINGERPRINTS)
+
+
+# ---------------------------------------------------------------------------
+# Dynamic header generation via browserforge (optional)
+# ---------------------------------------------------------------------------
+
+def generate_headers(browser: str = "chrome") -> dict[str, str]:
+    """Generate realistic browser headers using browserforge.
+
+    Falls back to a random static fingerprint if browserforge is not installed.
+    """
+    try:
+        from browserforge.headers import HeaderGenerator
+
+        gen = HeaderGenerator(browser=browser)
+        return dict(gen.generate())
+    except ImportError:
+        return get_fingerprint_for_domain("").to_headers()
+
+
+def generate_convincing_referer(domain: str) -> str:
+    """Create a Google search referer URL for the given domain.
+
+    Returns empty string for localhost / IP addresses.
+    """
+    if not domain or domain in ("localhost", "127.0.0.1", "::1"):
+        return ""
+    # Strip port if present
+    host = domain.split(":")[0]
+    query = urllib.parse.quote_plus(host)
+    return f"https://www.google.com/search?q={query}"

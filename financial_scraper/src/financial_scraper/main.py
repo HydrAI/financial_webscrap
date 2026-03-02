@@ -327,6 +327,8 @@ def build_transcript_config(args):
         checkpoint_file=Path(args.checkpoint),
         resume=args.resume,
         fmp_api_key=getattr(args, "fmp_api_key", ""),
+        proxies_file=Path(args.proxies_file) if getattr(args, "proxies_file", None) else None,
+        browser_fallback=getattr(args, "browser_fallback", False),
     )
 
 
@@ -363,6 +365,16 @@ def _add_transcript_args(p: argparse.ArgumentParser):
     p.add_argument(
         "--fmp-api-key", default="",
         help="Financial Modeling Prep API key for fallback transcripts (or set FMP_API_KEY env var)",
+    )
+
+    # Anti-detection / proxy
+    p.add_argument(
+        "--proxies-file", default=None,
+        help="File with proxy URLs (one per line: http://user:pass@host:port)",
+    )
+    p.add_argument(
+        "--browser-fallback", action="store_true",
+        help="Use Playwright browser as final fallback for blocked pages (requires playwright)",
     )
 
 

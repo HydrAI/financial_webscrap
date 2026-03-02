@@ -13,6 +13,7 @@ from .fingerprints import get_fingerprint_for_domain, ALL_FINGERPRINTS
 from .throttle import DomainThrottler
 from .robots import RobotChecker
 from .tor import TorManager
+from .proxy import ProxyRotator
 
 logger = logging.getLogger(__name__)
 
@@ -33,11 +34,13 @@ class FetchClient:
 
     def __init__(self, config: ScraperConfig, throttler: DomainThrottler,
                  robot_checker: RobotChecker,
-                 tor_manager: TorManager | None = None):
+                 tor_manager: TorManager | None = None,
+                 proxy_rotator: ProxyRotator | None = None):
         self._config = config
         self._throttler = throttler
         self._robot_checker = robot_checker
         self._tor = tor_manager
+        self._proxy_rotator = proxy_rotator
         self._session: aiohttp.ClientSession | None = None
         self._global_semaphore = asyncio.Semaphore(config.max_concurrent_total)
 

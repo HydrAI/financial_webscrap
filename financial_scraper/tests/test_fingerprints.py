@@ -35,10 +35,15 @@ class TestToHeaders:
 
 
 class TestGetFingerprintForDomain:
-    def test_deterministic(self):
-        fp1 = get_fingerprint_for_domain("example.com")
-        fp2 = get_fingerprint_for_domain("example.com")
-        assert fp1 is fp2
+    def test_returns_valid_fingerprint(self):
+        fp = get_fingerprint_for_domain("example.com")
+        assert fp in ALL_FINGERPRINTS
+
+    def test_randomised_selection(self):
+        """Multiple calls may return different fingerprints (random, not deterministic)."""
+        results = {get_fingerprint_for_domain("example.com") for _ in range(50)}
+        # With 5 profiles and 50 draws, we expect multiple distinct results
+        assert len(results) >= 2
 
     def test_returns_from_all_fingerprints(self):
         for domain in ["a.com", "b.com", "c.com", "d.com", "e.com",

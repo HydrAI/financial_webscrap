@@ -1,6 +1,8 @@
-"""Discover earnings call transcript URLs from Motley Fool sitemaps."""
+"""Discover earnings call transcript URLs from Motley Fool sitemaps.
 
-import json
+Uses lxml.etree for XML sitemap parsing (faster than BeautifulSoup).
+"""
+
 import logging
 import re
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -9,6 +11,26 @@ from datetime import datetime
 from pathlib import Path
 
 import requests
+
+# Use orjson when available for faster cache I/O, fallback to stdlib json
+try:
+    import orjson
+
+    def _json_dumps(data) -> bytes:
+        return orjson.dumps(data)
+
+    def _json_loads(raw: bytes | str):
+        return orjson.loads(raw)
+
+except ImportError:
+    import json as _json
+
+    def _json_dumps(data) -> bytes:  # type: ignore[misc]
+        return _json.dumps(data).encode("utf-8")
+
+    def _json_loads(raw: bytes | str):  # type: ignore[misc]
+        return _json.loads(raw)
+
 
 logger = logging.getLogger(__name__)
 
@@ -28,8 +50,10 @@ _SLUG_RE = re.compile(
     r"(?P<fiscal_year>\d{4})-earnings"
 )
 
+_SITEMAP_NS = {"s": "http://www.sitemaps.org/schemas/sitemap/0.9"}
 
-@dataclass(frozen=True)
+
+@dataclass(frozen=True, slots=True)
 class TranscriptInfo:
     """Metadata for a discovered transcript URL."""
     url: str
@@ -54,6 +78,28 @@ def _parse_transcript_url(url: str) -> TranscriptInfo | None:
         year=int(m.group("fiscal_year")),
         pub_date=f"{m.group('pub_year')}-{m.group('pub_month')}-{m.group('pub_day')}",
     )
+
+
+def _parse_sitemap_xml(content: str | bytes) -> list[str]:
+    """Extract all <loc> URLs from sitemap XML using lxml.etree."""
+    from lxml import etree
+
+    if isinstance(content, str):
+        content = content.encode("utf-8")
+
+    try:
+        root = etree.fromstring(content)
+    except etree.XMLSyntaxError:
+        return []
+
+    # Try with standard sitemap namespace first, then without namespace
+    locs = root.findall(".//s:loc", _SITEMAP_NS)
+    if not locs:
+        locs = root.findall(".//{http://www.sitemaps.org/schemas/sitemap/0.9}loc")
+    if not locs:
+        locs = root.findall(".//loc")
+
+    return [loc.text for loc in locs if loc.text]
 
 
 def _fetch_sitemap_urls(year: int, month: int) -> list[str]:
@@ -87,9 +133,7 @@ def _fetch_sitemap_urls(year: int, month: int) -> list[str]:
             logger.warning(f"Sitemap {url} returned {resp.status_code}")
             return []
 
-        from bs4 import BeautifulSoup
-        soup = BeautifulSoup(resp.text, "xml")
-        return [loc.text for loc in soup.find_all("loc")]
+        return _parse_sitemap_xml(resp.text)
 
     logger.warning(f"Sitemap {year}-{month:02d} failed after 3 attempts (persistent 429)")
     return []
@@ -193,16 +237,16 @@ def discover_transcripts_range(
         cache_path: Optional path to save/load discovery results as JSON.
 
     Returns:
-        Dict mapping ticker → sorted list of TranscriptInfo.
+        Dict mapping ticker -> sorted list of TranscriptInfo.
     """
     # --- Load from cache if available ---
     if cache_path and Path(cache_path).exists():
         logger.info(f"Loading discovery cache from {cache_path}")
         try:
-            with open(cache_path, "r", encoding="utf-8") as f:
-                raw = json.load(f)
+            raw = Path(cache_path).read_bytes()
+            data = _json_loads(raw)
             result: dict[str, list[TranscriptInfo]] = {}
-            for ticker, items in raw.items():
+            for ticker, items in data.items():
                 result[ticker] = [TranscriptInfo(**item) for item in items]
             total = sum(len(v) for v in result.values())
             logger.info(f"Discovery cache loaded: {total} transcript(s) across {len(result)} ticker(s)")
@@ -224,7 +268,7 @@ def discover_transcripts_range(
 
     logger.info(
         f"Bulk discovery: {len(ticker_upper_set)} ticker(s), "
-        f"FY{from_year}–FY{to_year}, "
+        f"FY{from_year}\u2013FY{to_year}, "
         f"scanning {len(months_to_scan)} monthly sitemaps "
         f"({sitemap_workers} workers)"
     )
@@ -286,7 +330,7 @@ def discover_transcripts_range(
         if infos:
             logger.info(
                 f"  {ticker}: {len(infos)} transcript(s) "
-                f"(FY{infos[0].year}–FY{infos[-1].year})"
+                f"(FY{infos[0].year}\u2013FY{infos[-1].year})"
             )
         else:
             logger.info(f"  {ticker}: 0 transcripts found")
@@ -297,11 +341,11 @@ def discover_transcripts_range(
     if cache_path and total > 0:
         try:
             Path(cache_path).parent.mkdir(parents=True, exist_ok=True)
-            with open(cache_path, "w", encoding="utf-8") as f:
-                json.dump(
-                    {ticker: [asdict(info) for info in infos] for ticker, infos in per_ticker.items()},
-                    f,
-                )
+            cache_data = {
+                ticker: [asdict(info) for info in infos]
+                for ticker, infos in per_ticker.items()
+            }
+            Path(cache_path).write_bytes(_json_dumps(cache_data))
             logger.info(f"Discovery cache saved to {cache_path}")
         except Exception as e:
             logger.warning(f"Failed to save discovery cache: {e}")

@@ -32,3 +32,9 @@ class TranscriptConfig:
 
     # Fallback source
     fmp_api_key: str = ""  # Financial Modeling Prep key; also read from FMP_API_KEY env var
+
+    # Proxy rotation
+    proxies_file: Path | None = None  # file with proxy URLs, one per line
+
+    # Browser fallback
+    browser_fallback: bool = False  # requires playwright installed

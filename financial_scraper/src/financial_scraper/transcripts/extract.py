@@ -1,11 +1,14 @@
-"""Extract structured transcript content from Motley Fool HTML."""
+"""Extract structured transcript content from Motley Fool HTML.
+
+Uses lxml for parsing (5-10x faster than BeautifulSoup for large pages).
+"""
 
 import json
 import logging
 import re
 from dataclasses import dataclass, field
 
-from bs4 import BeautifulSoup, Tag
+from lxml import html as lxml_html
 
 logger = logging.getLogger(__name__)
 
@@ -40,7 +43,7 @@ _CONTENTS = {"CONTENTS"}
 _FULL_TRANSCRIPT = {"FULL CONFERENCE CALL TRANSCRIPT"}
 
 
-@dataclass
+@dataclass(slots=True)
 class TranscriptResult:
     """Structured earnings call transcript."""
     company: str = ""
@@ -55,11 +58,18 @@ class TranscriptResult:
     qa_section: str = ""
 
 
-def _extract_json_ld(soup: BeautifulSoup) -> dict:
-    """Extract JSON-LD structured data from the page."""
-    for script in soup.find_all("script", type="application/ld+json"):
+def _extract_json_ld(doc) -> dict:
+    """Extract JSON-LD structured data from the page.
+
+    Args:
+        doc: lxml HtmlElement (root of the parsed document).
+    """
+    for script in doc.cssselect('script[type="application/ld+json"]'):
         try:
-            data = json.loads(script.string)
+            text = script.text_content()
+            if not text:
+                continue
+            data = json.loads(text)
             if data.get("@type") == "NewsArticle":
                 return data
         except (json.JSONDecodeError, TypeError):
@@ -78,20 +88,21 @@ def _extract_ticker_from_jsonld(data: dict) -> str:
     return ""
 
 
-def _split_body_by_h2(body: Tag) -> dict[str, list[Tag]]:
+def _split_body_by_h2(body) -> dict[str, list]:
     """Split article body into sections keyed by normalized h2 heading text.
 
     Returns a dict mapping normalized heading -> list of sibling elements
     between that h2 and the next h2.
+
+    Args:
+        body: lxml HtmlElement for the article-body div.
     """
-    sections: dict[str, list[Tag]] = {}
+    sections: dict[str, list] = {}
     current_key: str | None = None
 
-    for child in body.children:
-        if not isinstance(child, Tag):
-            continue
-        if child.name == "h2":
-            current_key = _norm_heading(child.get_text(strip=True))
+    for child in body:
+        if child.tag == "h2":
+            current_key = _norm_heading(child.text_content().strip())
             sections[current_key] = []
         elif current_key is not None:
             sections[current_key].append(child)
@@ -99,18 +110,18 @@ def _split_body_by_h2(body: Tag) -> dict[str, list[Tag]]:
     return sections
 
 
-def _section_text(elements: list[Tag]) -> str:
+def _section_text(elements: list) -> str:
     """Join text from paragraph/list elements."""
     paragraphs = []
     for el in elements:
-        if el.name in ("p", "ul", "ol"):
-            text = el.get_text(strip=True)
+        if el.tag in ("p", "ul", "ol"):
+            text = el.text_content().strip()
             if text:
                 paragraphs.append(text)
     return "\n\n".join(paragraphs)
 
 
-def _find_section(sections: dict[str, list[Tag]], headings: set[str]) -> list[Tag]:
+def _find_section(sections: dict[str, list], headings: set[str]) -> list:
     """Find a section by trying multiple heading variants."""
     for key, elements in sections.items():
         if key in headings:
@@ -118,7 +129,7 @@ def _find_section(sections: dict[str, list[Tag]], headings: set[str]) -> list[Ta
     return []
 
 
-def _extract_participants_from_elements(elements: list[Tag]) -> list[str]:
+def _extract_participants_from_elements(elements: list) -> list[str]:
     """Extract participant names from section elements.
 
     Handles two formats:
@@ -127,21 +138,21 @@ def _extract_participants_from_elements(elements: list[Tag]) -> list[str]:
     """
     participants = []
     for el in elements:
-        if el.name == "ul":
-            for li in el.find_all("li"):
-                text = li.get_text(strip=True)
+        if el.tag == "ul":
+            for li in el.cssselect("li"):
+                text = li.text_content().strip()
                 if text:
                     participants.append(text)
-        elif el.name == "p":
-            strong = el.find("strong")
-            if strong and strong.get_text(strip=True):
-                text = el.get_text(strip=True)
+        elif el.tag == "p":
+            strongs = el.cssselect("strong")
+            if strongs and strongs[0].text_content().strip():
+                text = el.text_content().strip()
                 if text and len(text) < 200:
                     participants.append(text)
     return participants
 
 
-def _extract_speakers_from_elements(elements: list[Tag]) -> list[str]:
+def _extract_speakers_from_elements(elements: list) -> list[str]:
     """Extract unique speaker names from <strong> tags in section elements.
 
     In live Motley Fool HTML, speaker lines are:
@@ -151,16 +162,17 @@ def _extract_speakers_from_elements(elements: list[Tag]) -> list[str]:
     """
     speakers = set()
     for el in elements:
-        if el.name != "p":
+        if el.tag != "p":
             continue
-        strong = el.find("strong")
-        if not strong:
+        strongs = el.cssselect("strong")
+        if not strongs:
             continue
+        strong = strongs[0]
         # A speaker <p> has <strong> as its first meaningful child and
         # the <strong> name is a large portion of the <p> text (not a bold
         # word inside a long paragraph of speech)
-        text = el.get_text(strip=True)
-        name = strong.get_text(strip=True)
+        text = el.text_content().strip()
+        name = strong.text_content().strip()
         if not name or len(name) <= 2:
             continue
         # Speaker <p> tags are short: "Name -- Title" or just "Name"
@@ -204,7 +216,7 @@ def _extract_speakers_from_text(text: str) -> list[str]:
 
 
 def _split_prepared_qa(
-    sections: dict[str, list[Tag]], full_text: str,
+    sections: dict[str, list], full_text: str,
 ) -> tuple[str, str]:
     """Split transcript into prepared remarks and Q&A.
 
@@ -240,11 +252,16 @@ def extract_transcript(html: str) -> TranscriptResult | None:
 
     Returns None if the page doesn't contain a recognizable transcript.
     """
-    soup = BeautifulSoup(html, "lxml")
+    try:
+        doc = lxml_html.fromstring(html)
+    except Exception:
+        logger.warning("Failed to parse HTML")
+        return None
+
     result = TranscriptResult()
 
     # 1. Extract metadata from JSON-LD
-    jsonld = _extract_json_ld(soup)
+    jsonld = _extract_json_ld(doc)
     if jsonld:
         headline = jsonld.get("headline", "")
         result.company = headline
@@ -252,10 +269,11 @@ def extract_transcript(html: str) -> TranscriptResult | None:
         result.date = jsonld.get("datePublished", "")[:10]  # YYYY-MM-DD
 
     # 2. Find the article body
-    body = soup.find("div", class_="article-body")
-    if not body:
+    bodies = doc.cssselect("div.article-body")
+    if not bodies:
         logger.warning("No article-body div found")
         return None
+    body = bodies[0]
 
     # 3. Split body into h2-delimited sections
     sections = _split_body_by_h2(body)
@@ -285,8 +303,8 @@ def extract_transcript(html: str) -> TranscriptResult | None:
         else:
             # Fallback: grab all <p> text from article body
             paragraphs = []
-            for p in body.find_all("p"):
-                text = p.get_text(strip=True)
+            for p in body.cssselect("p"):
+                text = p.text_content().strip()
                 if text and len(text) > 20:
                     paragraphs.append(text)
             transcript_text = "\n\n".join(paragraphs)
