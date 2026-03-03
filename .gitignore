@@ -96,7 +96,11 @@ _archive/
 # Data outputs (large, generated)
 *.parquet
 *.jsonl
+*.csv
 output/
+
+# Run outputs (checkpoints, caches, transcripts)
+runs/
 
 # Logs
 *.log
