@@ -5,6 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.2] - 2026-03-04
+
+### Added
+
+- **Multi-source transcript coverage**: Standalone backfill scripts extend transcript collection beyond the built-in Motley Fool pipeline:
+  - AlphaStreet sitemap-based backfill (2019-2026, 4,800+ transcripts)
+  - Seeking Alpha via Wayback Machine CDX API (2007-2020, historical coverage)
+  - Research4 text file converter (2015-2020, S&P 500 transcripts)
+  - Parquet merge/dedup tool for combining all sources
+- **Wayback CDX deep expansion**: Multi-phase CDX discovery with 3-digit sub-prefixes, year-filtered queries, and extra article ID ranges (63,000+ archived URLs discovered)
+- Combined coverage: **25,000+ transcripts** across **1,500 tickers**, spanning **2007-2026**
+
+### Changed
+
+- Updated README, User Guide, CLI Cookbook with multi-source transcript documentation
+- Test badge updated: 405 tests, 91% coverage
+
 ## [0.4.1] - 2026-02-28
 
 ### Added

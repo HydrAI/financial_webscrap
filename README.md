@@ -1,10 +1,10 @@
 # financial-scraper
 
-Ethical, modular web scraper for financial research. Three modes: DuckDuckGo search (text/news), deep URL crawling (crawl4ai headless browser), and earnings call transcript downloading (Motley Fool). Outputs to Parquet.
+Ethical, modular web scraper for financial research. Three modes: DuckDuckGo search (text/news), deep URL crawling (crawl4ai headless browser), and earnings call transcript downloading (multi-source: Motley Fool, AlphaStreet, Seeking Alpha). Outputs to Parquet.
 
 ![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue)
-![Tests](https://img.shields.io/badge/tests-350%20passed-brightgreen)
-![Coverage](https://img.shields.io/badge/coverage-89%25-brightgreen)
+![Tests](https://img.shields.io/badge/tests-405%20passed-brightgreen)
+![Coverage](https://img.shields.io/badge/coverage-91%25-brightgreen)
 ![License: MIT](https://img.shields.io/badge/license-MIT-green)
 
 ---
@@ -16,7 +16,7 @@ Ethical, modular web scraper for financial research. Three modes: DuckDuckGo sea
 - **Async HTTP**, aiohttp with configurable concurrency and per-domain throttling
 - **HTML + PDF extraction**, trafilatura 2-pass for HTML, pdfplumber or Docling for PDFs (layout-aware with table detection)
 - **Content deduplication**, URL normalization + SHA256 exact hash + MinHash LSH fuzzy near-duplicate detection
-- **Earnings transcripts**, download structured earnings call transcripts by ticker from Motley Fool (speakers, Q&A, metadata)
+- **Earnings transcripts**, download structured earnings call transcripts by ticker from multiple sources (Motley Fool, AlphaStreet, Seeking Alpha via Wayback Machine). Covers 2007-2026 with 25,000+ transcripts across 1,500 tickers
 - **Checkpoint/resume**, atomic saves after each query, crash recovery
 - **Fingerprint rotation**, 5 browser profiles to reduce bot detection
 - **Parquet + JSONL output**, columnar storage with snappy compression
@@ -153,7 +153,7 @@ Seed URLs can point directly to PDFs (e.g. SEC filings). PDF and HTML results sh
 
 ### Earnings call transcripts (transcripts subcommand)
 
-Download structured transcripts from Motley Fool by ticker symbol:
+Download structured transcripts by ticker symbol from multiple sources:
 
 ```bash
 # All 2025 transcripts for Apple
@@ -162,11 +162,11 @@ financial-scraper transcripts --tickers AAPL --year 2025 --output-dir ./runs
 # Multiple tickers, specific quarters, with JSONL
 financial-scraper transcripts --tickers AAPL MSFT NVDA --quarters Q1 Q4 --jsonl --output-dir ./runs
 
-# From a file of tickers (one per line)
+# From a file of tickers (one per line, supports 1,500+ tickers)
 financial-scraper transcripts --tickers-file tickers.txt --year 2025 --output-dir ./runs
 ```
 
-Discovers transcript URLs via Motley Fool sitemaps, extracts speakers, prepared remarks, and Q&A sections. Output uses the same Parquet schema as search and crawl modes.
+Sources include Motley Fool (sitemaps), AlphaStreet (sitemaps), and Seeking Alpha (via Wayback Machine for historical coverage). Extracts speakers, prepared remarks, and Q&A sections. Output uses the same Parquet schema as search and crawl modes.
 
 ### More options
 

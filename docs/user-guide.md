@@ -729,7 +729,17 @@ asyncio.run(pipeline.run())
 
 ## Earnings Transcripts (`transcripts` subcommand)
 
-The `transcripts` subcommand downloads structured earnings call transcripts from Motley Fool. It discovers transcript URLs via monthly sitemaps, fetches and extracts full transcript content (speakers, prepared remarks, Q&A), and outputs to Parquet.
+The `transcripts` subcommand downloads structured earnings call transcripts from multiple sources. The built-in pipeline discovers transcript URLs via Motley Fool sitemaps, fetches and extracts full transcript content (speakers, prepared remarks, Q&A), and outputs to Parquet. Standalone backfill scripts extend coverage to AlphaStreet and Seeking Alpha (via Wayback Machine) for broader historical reach.
+
+### Coverage overview
+
+| Source | Coverage | Strengths |
+|--------|----------|-----------|
+| Motley Fool (built-in pipeline) | 2013-2026 | Primary source, best for recent years |
+| AlphaStreet (standalone script) | 2019-2026 | High hit rate, good for recent gaps |
+| Seeking Alpha via Wayback Machine (standalone script) | 2007-2020 | Best for historical transcripts pre-2019 |
+
+Combined coverage spans **2007-2026** with **25,000+ transcripts** across **1,500 tickers**.
 
 ### When to use `transcripts`
 
@@ -751,7 +761,7 @@ python -m financial_scraper transcripts --tickers AAPL MSFT NVDA --quarters Q1 Q
 # With JSONL output
 python -m financial_scraper transcripts --tickers AAPL --year 2025 --jsonl --output-dir ./runs
 
-# From a file of tickers (one per line)
+# From a file of tickers (one per line, supports 1,500+ tickers)
 python -m financial_scraper transcripts --tickers-file tickers.txt --year 2025 --output-dir ./runs
 ```
 
@@ -760,7 +770,21 @@ python -m financial_scraper transcripts --tickers-file tickers.txt --year 2025 -
 1. **Discovery**: Scans Motley Fool monthly XML sitemaps (`fool.com/sitemap/YYYY/MM`) for transcript URLs containing the target ticker
 2. **Fetch**: Downloads each transcript page with polite 1.5s delays
 3. **Extract**: Parses HTML for metadata (JSON-LD), participants, speakers, full transcript text, and splits into prepared remarks vs Q&A
-4. **Dedup + Store**: Deduplicates by URL and content, writes to Parquet with `merged_by_year` schema
+4. **Dedup + Store**: Deduplicates by `(ticker, year, quarter)` — keeps first occurrence, writes to Parquet
+
+### Large-scale runs
+
+For bulk transcript collection across many tickers, use a tickers file and checkpoint/resume:
+
+```bash
+# Large run with resume (safe to interrupt and restart)
+python -m financial_scraper transcripts --tickers-file config/us10002_active_tickers.txt --year 2025 --resume --output-dir ./runs
+
+# Resume after interruption
+python -m financial_scraper transcripts --tickers-file config/us10002_active_tickers.txt --year 2025 --resume --output-dir ./runs
+```
+
+For historical backfill beyond what the built-in Motley Fool pipeline covers, standalone scripts (`_fill_alphastreet_gaps.py`, `_fill_wayback_gaps.py`) can fill gaps from AlphaStreet sitemaps and Seeking Alpha via the Wayback Machine CDX API. These scripts use the same Parquet schema and can be merged with `_merge_parquets.py`.
 
 ### Output format
 
@@ -775,6 +799,8 @@ The output uses the same Parquet schema as search and crawl modes:
 | `source` | `fool.com` |
 | `full_text` | Full transcript (typically 5,000-10,000+ words) |
 | `source_file` | `AAPL_transcript_Q1_2025.parquet` |
+
+The `source` field indicates provenance: `fool.com`, `alphastreet.com`, `seekingalpha.com (wayback)`, or `seekingalpha.com (research4)`.
 
 ### Key options
 

@@ -109,6 +109,13 @@ graph TB
         transcript_extract["<b>extract.py</b>\nHTML transcript\nextraction"]
     end
 
+    subgraph Backfill_mod["&nbsp; 🔄 Standalone Backfill &nbsp;"]
+        direction LR
+        alphastreet["<b>AlphaStreet</b>\nsitemap discovery\n2019-2026"]
+        wayback["<b>Wayback+SA</b>\nCDX API discovery\n2007-2020"]
+        merge["<b>Merge</b>\ndedup by ticker\nyear, quarter"]
+    end
+
     main ==> transcript_pipeline
     transcript_pipeline --> transcript_config
     transcript_pipeline --> transcript_discovery
@@ -307,3 +314,5 @@ flowchart TD
 **Crawl subcommand (crawl4ai)**,The `crawl` subcommand uses crawl4ai's `AsyncWebCrawler` with `BestFirstCrawlingStrategy` for headless browser crawling. This handles JS-rendered pages, link discovery, BFS scheduling, and anti-detection internally. The crawl pipeline reuses the same extract/store layers (HTMLExtractor, TextCleaner, Deduplicator, ParquetWriter) as the search pipeline, keeping the architecture DRY. URL scoring prioritises financial content keywords and penalises deep or stale paths. PDF URLs encountered during crawling are detected (by URL extension or content-type header), downloaded directly, and extracted using the configured PDF backend (`--pdf-extractor`).
 
 **PDF extraction**,Two backends are available: **pdfplumber** (lightweight, always installed) and **Docling** (layout-aware with table detection and hierarchical structure, optional via `pip install financial-scraper[docling]`). The `--pdf-extractor auto` default uses Docling when available, falling back to pdfplumber. Both backends produce the same `ExtractionResult` interface, so downstream dedup, filtering, and storage are unaffected by the choice.
+
+**Multi-source transcript strategy**,No single source covers all tickers and years. The built-in pipeline handles Motley Fool (best for 2019+). Standalone backfill scripts target AlphaStreet (high hit rate for 2019-2026) and Seeking Alpha via Wayback Machine CDX API (best for pre-2019 historical data). All sources share the same Parquet schema and deduplicate by `(ticker, year, quarter)`, keeping the first occurrence in merge priority order: Fool/AlphaStreet > Wayback > Research4.
