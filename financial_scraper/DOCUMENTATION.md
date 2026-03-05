@@ -17,7 +17,7 @@
 
 ## 1. Project Overview
 
-**financial_scraper** is a modular Python package for financial content acquisition. It supports three modes: DuckDuckGo search (text/news), deep URL crawling (crawl4ai), and earnings call transcript downloading (Motley Fool). All modes output to Parquet format compatible with the `merged_by_year` data pipeline.
+**financial_scraper** is a modular Python package for financial content acquisition. It supports three modes: DuckDuckGo search (text/news), deep URL crawling (crawl4ai), and earnings call transcript downloading (multi-source: Motley Fool, AlphaStreet, Seeking Alpha via Wayback, Fool via Wayback). All modes output to Parquet format compatible with the `merged_by_year` data pipeline. The transcript pipeline produces 27,800+ clean transcripts across 1,425 tickers (2006-2026).
 
 ### What it does
 
@@ -1006,6 +1006,30 @@ Added a `transcripts` subcommand that downloads structured earnings call transcr
 5. **Verified output**: AAPL Q1 2025 transcript — 8,136 words, 48,422 chars, full speaker list, prepared remarks + Q&A sections extracted correctly.
 
 6. **18 new tests** for discovery URL parsing, config, HTML extraction, JSON-LD parsing, and ticker extraction. Total: 350 tests.
+
+### Phase 10: Multi-Source Transcript Backfill & Quality Pipeline (2026-03-04 to 2026-03-05)
+
+Extended transcript coverage from a single Motley Fool source to 5 sources with automated quality fixes:
+
+1. **AlphaStreet backfill** (`_fill_alphastreet_gaps.py`): Sitemap-based discovery for 2019-2026, 2,236 transcripts with 99.96% hit rate.
+
+2. **Seeking Alpha via Wayback Machine** (`_fill_wayback_gaps.py`): CDX API discovery (63,669 archived URLs via `_expand_cdx_deep.py`), 8,278 transcripts spanning 2007-2023. Multi-phase CDX expansion with 3-digit sub-prefixes and year-filtered queries.
+
+3. **Motley Fool via Wayback Machine** (`_fill_wayback_fool_gaps.py`): CDX discovery of 18,053 archived Fool transcript pages. Key finding: archived pages use different CSS selectors (`section.article-body`, `div.full_article`, `div.main-col`) than current site (`div.article-body`). 892+ transcripts from 2017-2020.
+
+4. **Research4 text files** (`_convert_research4.py`): Converted 1,655 S&P 500 transcripts from `research_4/` text files (2015-2020).
+
+5. **FMP API** (`_fill_fmp_gaps.py`): Built but blocked — free tier returns 402 for transcript endpoint. Ready to run with paid key.
+
+6. **Merge pipeline** (`_merge_parquets.py`): Combines all 5 sources, deduplicates by `(company, year, quarter)` keeping longest transcript.
+
+7. **Two-round quality fix pipeline**:
+   - Round 1 (`_fix_parquet_issues.py`): Null date recovery from titles (1,406), epoch date fix, paywall stub removal (1,341), boilerplate tail cleaning (1,863)
+   - Round 2 (`_fix_deep_issues.py`): Misassigned ticker removal (17), cross-ticker dedup (44), HTML cleanup (178), encoding fix (296), year mismatch correction (61), borderline paywall cleaning (1,718)
+
+8. **Deep quality analysis** (`_deep_quality.py`): 11-check verification suite. Post-fix result: 0 issues across all checks.
+
+9. **Final output**: 27,798 rows across 1,425 tickers (94.3% of US10002 universe), spanning 2006-2026.
 
 ### Errors Fixed During Development
 

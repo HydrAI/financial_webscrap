@@ -729,17 +729,19 @@ asyncio.run(pipeline.run())
 
 ## Earnings Transcripts (`transcripts` subcommand)
 
-The `transcripts` subcommand downloads structured earnings call transcripts from multiple sources. The built-in pipeline discovers transcript URLs via Motley Fool sitemaps, fetches and extracts full transcript content (speakers, prepared remarks, Q&A), and outputs to Parquet. Standalone backfill scripts extend coverage to AlphaStreet and Seeking Alpha (via Wayback Machine) for broader historical reach.
+The `transcripts` subcommand downloads structured earnings call transcripts from multiple sources. The built-in pipeline discovers transcript URLs via Motley Fool sitemaps, fetches and extracts full transcript content (speakers, prepared remarks, Q&A), and outputs to Parquet. Standalone backfill scripts extend coverage to AlphaStreet, Seeking Alpha (via Wayback Machine), and archived Motley Fool pages (via Wayback Machine) for broader historical reach.
 
 ### Coverage overview
 
-| Source | Coverage | Strengths |
-|--------|----------|-----------|
-| Motley Fool (built-in pipeline) | 2013-2026 | Primary source, best for recent years |
-| AlphaStreet (standalone script) | 2019-2026 | High hit rate, good for recent gaps |
-| Seeking Alpha via Wayback Machine (standalone script) | 2007-2020 | Best for historical transcripts pre-2019 |
+| Source | Coverage | Transcripts | Strengths |
+|--------|----------|-------------|-----------|
+| Motley Fool (built-in pipeline) | 2013-2026 | 14,737 | Primary source, best for recent years |
+| Seeking Alpha via Wayback Machine | 2007-2023 | 8,278 | Best for historical transcripts pre-2019 |
+| AlphaStreet (standalone script) | 2019-2026 | 2,236 | High hit rate, good for recent gaps |
+| Research4 text files | 2015-2020 | 1,655 | S&P 500 transcripts |
+| Motley Fool via Wayback Machine | 2017-2020 | 892+ | Archived Fool pages not in current sitemaps |
 
-Combined coverage spans **2007-2026** with **25,000+ transcripts** across **1,500 tickers**.
+Combined coverage spans **2006-2026** with **27,800+ transcripts** across **1,425 tickers** (94.3% of US10002 universe). A two-round quality pipeline ensures clean data with 0 HTML artifacts, 0 encoding issues, 0 misassigned tickers, and 0 short stubs.
 
 ### When to use `transcripts`
 
@@ -784,7 +786,21 @@ python -m financial_scraper transcripts --tickers-file config/us10002_active_tic
 python -m financial_scraper transcripts --tickers-file config/us10002_active_tickers.txt --year 2025 --resume --output-dir ./runs
 ```
 
-For historical backfill beyond what the built-in Motley Fool pipeline covers, standalone scripts (`_fill_alphastreet_gaps.py`, `_fill_wayback_gaps.py`) can fill gaps from AlphaStreet sitemaps and Seeking Alpha via the Wayback Machine CDX API. These scripts use the same Parquet schema and can be merged with `_merge_parquets.py`.
+For historical backfill beyond what the built-in Motley Fool pipeline covers, standalone scripts fill gaps from additional sources:
+
+| Script | Source | Purpose |
+|--------|--------|---------|
+| `_fill_alphastreet_gaps.py` | AlphaStreet sitemaps | 2019-2026 gaps |
+| `_fill_wayback_gaps.py` | Seeking Alpha via Wayback CDX | Historical pre-2019 |
+| `_fill_wayback_fool_gaps.py` | Motley Fool via Wayback CDX | Archived Fool pages 2017-2020 |
+| `_fill_fmp_gaps.py` | FMP API | All years (requires paid key) |
+
+After fetching, merge and clean with:
+```bash
+python _merge_parquets.py          # Combine all sources, dedup by (company, year, quarter)
+python _fix_parquet_issues.py      # Fix dates, remove paywall stubs, clean boilerplate
+python _fix_deep_issues.py         # Fix misassigned tickers, HTML/encoding, year mismatches
+```
 
 ### Output format
 
@@ -800,7 +816,7 @@ The output uses the same Parquet schema as search and crawl modes:
 | `full_text` | Full transcript (typically 5,000-10,000+ words) |
 | `source_file` | `AAPL_transcript_Q1_2025.parquet` |
 
-The `source` field indicates provenance: `fool.com`, `alphastreet.com`, `seekingalpha.com (wayback)`, or `seekingalpha.com (research4)`.
+The `source` field indicates provenance: `fool.com`, `alphastreet.com`, `seekingalpha.com (wayback)`, `seekingalpha.com (research4)`, or `fool.com (wayback)`.
 
 ### Key options
 

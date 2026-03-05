@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.3] - 2026-03-05
+
+### Added
+
+- **Wayback Motley Fool backfill** (`_fill_wayback_fool_gaps.py`): New source — discovers archived Fool transcript pages via CDX API (18,053 URLs), extracts with era-appropriate CSS selectors (`section.article-body`, `div.full_article`, `div.main-col`), writes to `wayback_fool_transcripts.parquet`
+- **FMP API gap-fill** (`_fill_fmp_gaps.py`): Extended to 2007-2026 with reverse chronological priority, .env.local key loading, PermissionError retry. Blocked by free tier (402 Payment Required)
+- **Deep quality analysis** (`_deep_quality.py`): 11-check quality suite — ticker-content mismatch, cross-ticker dupes, HTML/encoding artifacts, short stubs, date mismatches, paywall detection, boilerplate ratio, truncation
+- **Two-round quality fix pipeline**:
+  - `_fix_parquet_issues.py`: Null date recovery from titles (1,406), epoch date fix, paywall stub removal (1,341), boilerplate tail cleaning (1,863)
+  - `_fix_deep_issues.py`: Misassigned ticker removal (17), cross-ticker dedup (44), HTML cleanup (178), encoding fix (296), year mismatch correction (61), borderline paywall cleaning (1,718)
+
+### Changed
+
+- Merged parquet: **27,798 rows** across **1,425 tickers** (94.3% of US10002 target), up from 25,000+
+- `_merge_parquets.py` now includes FMP and Wayback Fool parquets as merge sources
+- Major coverage improvements: 2010 5.7%→12.8%, 2011 6.4%→21.7%, 2012 8.8%→40.0%, 2014 7.5%→30.5%, 2016 18.6%→61.7%, 2024 20.5%→52.0%
+- All quality checks now pass: 0 HTML artifacts, 0 encoding issues, 0 misassigned tickers, 0 short stubs
+
 ## [0.4.2] - 2026-03-04
 
 ### Added

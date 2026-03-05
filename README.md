@@ -3,7 +3,7 @@
 Ethical, modular web scraper for financial research. Three modes: DuckDuckGo search (text/news), deep URL crawling (crawl4ai headless browser), and earnings call transcript downloading (multi-source: Motley Fool, AlphaStreet, Seeking Alpha). Outputs to Parquet.
 
 ![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue)
-![Tests](https://img.shields.io/badge/tests-405%20passed-brightgreen)
+![Tests](https://img.shields.io/badge/tests-439%20passed-brightgreen)
 ![Coverage](https://img.shields.io/badge/coverage-91%25-brightgreen)
 ![License: MIT](https://img.shields.io/badge/license-MIT-green)
 
@@ -16,7 +16,7 @@ Ethical, modular web scraper for financial research. Three modes: DuckDuckGo sea
 - **Async HTTP**, aiohttp with configurable concurrency and per-domain throttling
 - **HTML + PDF extraction**, trafilatura 2-pass for HTML, pdfplumber or Docling for PDFs (layout-aware with table detection)
 - **Content deduplication**, URL normalization + SHA256 exact hash + MinHash LSH fuzzy near-duplicate detection
-- **Earnings transcripts**, download structured earnings call transcripts by ticker from multiple sources (Motley Fool, AlphaStreet, Seeking Alpha via Wayback Machine). Covers 2007-2026 with 25,000+ transcripts across 1,500 tickers
+- **Earnings transcripts**, download structured earnings call transcripts by ticker from 5 sources (Motley Fool, AlphaStreet, Seeking Alpha via Wayback, Motley Fool via Wayback). Covers 2007-2026 with 27,800+ transcripts across 1,425 tickers (94% of US10002 universe). Two-round quality pipeline ensures clean data (0 artifacts, 0 misassignments)
 - **Checkpoint/resume**, atomic saves after each query, crash recovery
 - **Fingerprint rotation**, 5 browser profiles to reduce bot detection
 - **Parquet + JSONL output**, columnar storage with snappy compression
@@ -166,7 +166,7 @@ financial-scraper transcripts --tickers AAPL MSFT NVDA --quarters Q1 Q4 --jsonl 
 financial-scraper transcripts --tickers-file tickers.txt --year 2025 --output-dir ./runs
 ```
 
-Sources include Motley Fool (sitemaps), AlphaStreet (sitemaps), and Seeking Alpha (via Wayback Machine for historical coverage). Extracts speakers, prepared remarks, and Q&A sections. Output uses the same Parquet schema as search and crawl modes.
+Sources include Motley Fool (sitemaps + Wayback Machine archives), AlphaStreet (sitemaps), Seeking Alpha (via Wayback Machine), and Research4 text files. Extracts speakers, prepared remarks, and Q&A sections. Standalone merge and quality-fix scripts combine all sources into a single clean parquet. Output uses the same Parquet schema as search and crawl modes.
 
 ### More options
 
