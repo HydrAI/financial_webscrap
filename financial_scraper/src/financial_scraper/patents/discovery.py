@@ -185,12 +185,15 @@ def discover_via_google_patents(
     assignee: str,
     max_results: int = 50,
     cpc_codes: list[str] | None = None,
+    granted_only: bool = False,
 ) -> list[str]:
     """Discover patent IDs by assignee via Google Patents XHR."""
     query_parts = [f'assignee:"{assignee}"']
     if cpc_codes:
         for code in cpc_codes[:3]:  # limit to avoid overly complex queries
             query_parts.append(f"CPC:{code}")
+    if granted_only:
+        query_parts.append("type:patent")
     query = " ".join(query_parts)
     logger.info(f"  Google Patents discovery: {query}")
     return _google_patents_xhr(query, max_results)
@@ -200,6 +203,7 @@ def discover_via_google_patents_keywords(
     search_queries: list[str],
     max_results: int = 50,
     cpc_codes: list[str] | None = None,
+    granted_only: bool = False,
 ) -> list[str]:
     """Discover patent IDs by keyword/topic via Google Patents XHR."""
     found_ids: list[str] = []
@@ -213,6 +217,8 @@ def discover_via_google_patents_keywords(
         if cpc_codes:
             for code in cpc_codes[:3]:
                 query_parts.append(f"CPC:{code}")
+        if granted_only:
+            query_parts.append("type:patent")
         query = " ".join(query_parts)
         logger.info(f"  Google Patents keyword search: {query}")
 
@@ -435,7 +441,8 @@ def discover_patent_ids(config: PatentConfig) -> list[str]:
         # Assignee search
         if config.assignee:
             gp_ids = discover_via_google_patents(
-                config.assignee, config.max_discovery_results, cpc_codes
+                config.assignee, config.max_discovery_results, cpc_codes,
+                granted_only=config.granted_only,
             )
             gp_found += len(gp_ids)
             all_ids.extend(gp_ids)
@@ -445,6 +452,7 @@ def discover_patent_ids(config: PatentConfig) -> list[str]:
             gp_query_ids = discover_via_google_patents_keywords(
                 list(config.search_queries),
                 config.max_discovery_results, cpc_codes,
+                granted_only=config.granted_only,
             )
             gp_found += len(gp_query_ids)
             all_ids.extend(gp_query_ids)

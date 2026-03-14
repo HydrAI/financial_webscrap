@@ -1,0 +1,22 @@
+# Secrets — never commit
+config/secrets.json
+
+# Runtime outputs
+runs/
+*.egg-info/
+__pycache__/
+
+# Checkpoints
+.scraper_checkpoint.json
+.patent_checkpoint*.json
+.crawl_checkpoint.json
+.transcript_checkpoint.json
+
+# Patent cache (bulk download)
+.patent_cache/
+
+# Editor / OS
+.claude/
+*.pyc
+.DS_Store
+Thumbs.db

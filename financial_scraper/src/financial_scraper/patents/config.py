@@ -22,6 +22,10 @@ class PatentConfig:
     ipc_filter: tuple[str, ...] = ()
     wipo_categories: tuple[str, ...] = ()
 
+    # Result filtering
+    granted_only: bool = False    # Only granted patents (exclude applications)
+    limit: int = 0                # 0 = unlimited, N = top N newest
+
     # Discovery
     discover_via_google_patents: bool = True  # Primary: Google Patents XHR
     discover_via_search: bool = False         # Fallback: DuckDuckGo
@@ -72,6 +76,8 @@ def load_targets_file(path: Path) -> list[PatentConfig]:
             ipc_filter=tuple(target.get("ipc_filter", [])),
             wipo_categories=tuple(target.get("wipo_categories", [])),
             max_discovery_results=target.get("max_discovery", 50),
+            granted_only=target.get("granted_only", False),
+            limit=target.get("limit", 0),
         ))
 
     # Theme-based targets (topic search, no assignee)
@@ -84,6 +90,8 @@ def load_targets_file(path: Path) -> list[PatentConfig]:
             ipc_filter=tuple(theme.get("ipc_filter", [])),
             wipo_categories=tuple(theme.get("wipo_categories", [])),
             max_discovery_results=theme.get("max_discovery", 50),
+            granted_only=theme.get("granted_only", False),
+            limit=theme.get("limit", 0),
         ))
 
     logger.info(

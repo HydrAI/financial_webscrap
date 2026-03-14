@@ -13,6 +13,7 @@ from .config import PatentConfig
 from .discovery import discover_patent_ids
 from .google_patents import PatentDetail, fetch_patent
 from .normalize import normalize_assignee, are_same_assignee
+from .uspto_fetcher import fetch_patent_from_uspto
 from .signals import SupplyChainSignals, extract_signals
 from .wipo import resolve_wipo_to_cpc
 from ..checkpoint import Checkpoint
@@ -138,9 +139,50 @@ class PatentPipeline:
 
         self._checkpoint.save()
         logger.info(
-            f"Fetched: {stats['fetched']}/{len(to_fetch)} successful, "
+            f"Google Patents: {stats['fetched']}/{len(to_fetch)} successful, "
             f"{stats['failed']} failed"
         )
+
+        # 5b. Retry failed US patents via USPTO PatFT/AppFT fallback
+        failed_ids = [
+            pid for pid in to_fetch
+            if pid.startswith("US") and pid not in {p.patent_id for p in fetched}
+        ]
+        if failed_ids and not self._shutdown_requested:
+            logger.info("")
+            logger.info("=" * 60)
+            logger.info(
+                f"Retrying {len(failed_ids)} failed US patent(s) via USPTO"
+            )
+            logger.info("=" * 60)
+
+            for pid in failed_ids:
+                if self._shutdown_requested:
+                    break
+
+                detail = fetch_patent_from_uspto(
+                    pid, self._session, self._throttler, timeout=config.timeout
+                )
+                if detail is None:
+                    continue
+
+                url = f"https://patents.google.com/patent/{pid}/en"
+                if detail.error:
+                    stats["uspto_failed"] += 1
+                else:
+                    self._checkpoint.mark_url_fetched(url)
+                    stats["fetched"] += 1
+                    stats["failed"] -= 1
+                    stats["uspto_recovered"] += 1
+                    fetched.append(detail)
+
+                self._checkpoint.save_if_due(120)
+
+            self._checkpoint.save()
+            if stats["uspto_recovered"]:
+                logger.info(
+                    f"USPTO fallback recovered {stats['uspto_recovered']} patent(s)"
+                )
 
         # 6. Post-fetch classification filter
         if has_class_filter and fetched:
@@ -152,6 +194,28 @@ class PatentPipeline:
             logger.info(
                 f"Classification filter: {len(fetched)}/{pre_filter} patents matched"
             )
+
+        # 6b. Granted-only post-fetch filter
+        if config.granted_only and fetched:
+            pre_granted = len(fetched)
+            fetched = [p for p in fetched if p.date_granted]
+            if len(fetched) < pre_granted:
+                logger.info(
+                    f"Granted-only filter: {len(fetched)}/{pre_granted} patents "
+                    f"have a grant date"
+                )
+
+        # 6c. Sort by newest + limit
+        if config.limit > 0 and fetched:
+            fetched.sort(
+                key=lambda p: p.date_granted or p.date_filed or "",
+                reverse=True,
+            )
+            if len(fetched) > config.limit:
+                logger.info(
+                    f"Limit: keeping top {config.limit} of {len(fetched)} patents"
+                )
+                fetched = fetched[:config.limit]
 
         if not fetched:
             logger.info("No patents remaining after filtering")
@@ -224,7 +288,7 @@ class PatentPipeline:
                 "snippet": snippet,
                 "date": patent.date_granted or patent.date_filed,
                 "source": "patents.google.com",
-                "full_text": patent.abstract,
+                "full_text": patent.full_text or patent.abstract,
                 "source_file": f"{company_slug}_patent_{patent.patent_id}.parquet",
             })
 

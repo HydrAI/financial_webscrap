@@ -16,7 +16,9 @@
       "discover_justia": false,
       "cpc_filter": [],
       "ipc_filter": [],
-      "wipo_categories": []
+      "wipo_categories": [],
+      "granted_only": true,
+      "limit": 10
     },
     {
       "company": "NVIDIA",
@@ -35,7 +37,9 @@
       "discover_justia": false,
       "cpc_filter": [],
       "ipc_filter": [],
-      "wipo_categories": ["Semiconductors", "Computer technology"]
+      "wipo_categories": ["Semiconductors", "Computer technology"],
+      "granted_only": true,
+      "limit": 20
     }
   ],
   "themes": [

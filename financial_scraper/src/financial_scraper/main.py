@@ -452,6 +452,12 @@ def _add_patent_args(p: argparse.ArgumentParser):
     p.add_argument("--list-wipo-categories", action="store_true",
                    help="Print all WIPO technology categories and exit")
 
+    # Result filtering
+    p.add_argument("--granted-only", action="store_true",
+                   help="Only include granted patents (exclude applications)")
+    p.add_argument("--limit", type=int, default=0,
+                   help="Return only the top N most recent patents (0 = unlimited)")
+
     # Fetch
     p.add_argument("--delay", type=float, default=4.0,
                    help="Base delay between requests in seconds (default: 4.0)")
@@ -503,6 +509,8 @@ def build_patent_config(args):
         discover_via_search=args.discover_search,
         discover_via_justia=args.discover_justia,
         max_discovery_results=args.max_discovery,
+        granted_only=args.granted_only,
+        limit=args.limit,
         delay=args.delay,
         timeout=args.timeout,
         output_dir=out_dir,
@@ -554,6 +562,10 @@ def _run_patents(args):
             out_dir, out_path, jsonl_path = _build_patent_output_paths(args, slug)
 
             # Merge target config with CLI overrides (delay, timeout, resume)
+            # CLI --granted-only / --limit override target file values
+            granted_only = args.granted_only or target.granted_only
+            limit = args.limit if args.limit > 0 else target.limit
+
             config = PatentConfig(
                 company=target.company,
                 ids_file=target.ids_file,
@@ -567,6 +579,8 @@ def _run_patents(args):
                 discover_via_search=target.discover_via_search,
                 discover_via_justia=target.discover_via_justia,
                 max_discovery_results=target.max_discovery_results,
+                granted_only=granted_only,
+                limit=limit,
                 delay=args.delay,
                 timeout=args.timeout,
                 output_dir=out_dir,
