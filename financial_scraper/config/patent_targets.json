@@ -1,0 +1,70 @@
+{
+  "targets": [
+    {
+      "company": "DroneShield",
+      "assignee": "Droneshield LLC",
+      "ids": [
+        "US9275645B2",
+        "US9704508B2",
+        "US9858947B2",
+        "US10032464B2",
+        "US20150302858A1",
+        "US20160118059A1",
+        "WO2017139001A3"
+      ],
+      "discover_search": false,
+      "discover_justia": false,
+      "cpc_filter": [],
+      "ipc_filter": [],
+      "wipo_categories": []
+    },
+    {
+      "company": "NVIDIA",
+      "assignee": "NVIDIA Corporation",
+      "ids": [
+        "US8776030B2",
+        "US9019286B2",
+        "US10067910B2",
+        "US8339404B2",
+        "US10909738B2",
+        "US20080030510A1",
+        "US20210124582A1",
+        "US20210174569A1"
+      ],
+      "discover_search": false,
+      "discover_justia": false,
+      "cpc_filter": [],
+      "ipc_filter": [],
+      "wipo_categories": ["Semiconductors", "Computer technology"]
+    }
+  ],
+  "themes": [
+    {
+      "name": "GPU Architecture Patents",
+      "search_queries": [
+        "GPU architecture patent",
+        "graphics processing unit parallel computing patent"
+      ],
+      "cpc_filter": ["G06F", "G06T"],
+      "wipo_categories": ["Computer technology"]
+    },
+    {
+      "name": "CUDA Parallel Computing",
+      "search_queries": [
+        "CUDA parallel computing patent",
+        "GPU general purpose computing patent"
+      ],
+      "cpc_filter": ["G06F"],
+      "wipo_categories": ["Computer technology"]
+    },
+    {
+      "name": "Counter-UAS Acoustic Detection",
+      "search_queries": [
+        "drone acoustic detection patent",
+        "UAV sound classification patent"
+      ],
+      "cpc_filter": ["G01S"],
+      "wipo_categories": ["Measurement"]
+    }
+  ]
+}

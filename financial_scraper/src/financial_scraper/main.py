@@ -24,7 +24,7 @@ logging.basicConfig(
 
 # Suppress noisy loggers
 for noisy in [
-    "duckduckgo_search", "urllib3", "asyncio",
+    "duckduckgo_search", "ddgs", "ddgs.ddgs", "primp", "urllib3", "asyncio",
     "charset_normalizer", "trafilatura",
 ]:
     logging.getLogger(noisy).setLevel(logging.ERROR)
@@ -410,6 +410,203 @@ def _run_transcripts(args):
     pipeline.run()
 
 
+def _add_patent_args(p: argparse.ArgumentParser):
+    """Add arguments for the patents subcommand."""
+    # Batch mode — targets file
+    p.add_argument("--targets-file", default=None,
+                   help="JSON config with multiple companies and/or themes "
+                        "(see config/patent_targets.json for format)")
+
+    # Single-target mode — inline args
+    p.add_argument("--company", default=None,
+                   help="Company name (for labeling output)")
+    p.add_argument("--ids-file", default=None,
+                   help="File with patent IDs (one per line)")
+    p.add_argument("--ids", nargs="*",
+                   help="Patent IDs to fetch (inline)")
+    p.add_argument("--assignee", default=None,
+                   help="Assignee name for patent discovery (e.g. 'Droneshield LLC')")
+    p.add_argument("--search-queries", nargs="*",
+                   help="Search keywords to discover patents by topic "
+                        "(e.g. 'drone acoustic detection patent')")
+
+    # Discovery
+    p.add_argument("--discover-google", action="store_true", default=True,
+                   help="Discover patent IDs via Google Patents (default: on)")
+    p.add_argument("--no-discover-google", action="store_true",
+                   help="Disable Google Patents discovery")
+    p.add_argument("--discover-search", action="store_true",
+                   help="Also discover via DuckDuckGo (requires --assignee)")
+    p.add_argument("--discover-justia", action="store_true",
+                   help="Also discover via Justia (requires --assignee)")
+    p.add_argument("--max-discovery", type=int, default=50,
+                   help="Max patent IDs to discover per source (default: 50)")
+
+    # Classification filter
+    p.add_argument("--cpc-filter", nargs="*",
+                   help="Keep only patents matching CPC prefix(es) (e.g. G01S H04)")
+    p.add_argument("--ipc-filter", nargs="*",
+                   help="Keep only patents matching IPC prefix(es)")
+    p.add_argument("--wipo-categories", nargs="*",
+                   help="Keep only patents in WIPO technology category (resolved to CPC)")
+    p.add_argument("--list-wipo-categories", action="store_true",
+                   help="Print all WIPO technology categories and exit")
+
+    # Fetch
+    p.add_argument("--delay", type=float, default=4.0,
+                   help="Base delay between requests in seconds (default: 4.0)")
+    p.add_argument("--timeout", type=int, default=30,
+                   help="HTTP timeout in seconds (default: 30)")
+
+    # Store
+    p.add_argument("--output-dir", default=None,
+                   help="Base dir for output (default: cwd)")
+    p.add_argument("--jsonl", action="store_true", help="Also write JSONL output")
+    p.add_argument("--checkpoint", default=".patent_checkpoint.json")
+    p.add_argument("--resume", action="store_true")
+    p.add_argument("--reset", action="store_true",
+                   help="Delete checkpoint before running (fresh start)")
+
+
+def _build_patent_output_paths(args, company_slug: str):
+    """Build output paths for a single patent target."""
+    ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+    base = Path(args.output_dir) if args.output_dir else Path(".")
+    out_dir = base / f"{company_slug}_{ts}"
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    out_path = out_dir / f"patents_{ts}.parquet"
+    jsonl_path = out_dir / f"patents_{ts}.jsonl" if args.jsonl else None
+    return out_dir, out_path, jsonl_path
+
+
+def build_patent_config(args):
+    """Build a single PatentConfig from CLI args (single-target mode)."""
+    from .patents.config import PatentConfig
+
+    company = args.company or "patents"
+    slug = company.lower().replace(" ", "_")
+    out_dir, out_path, jsonl_path = _build_patent_output_paths(args, slug)
+
+    discover_google = not getattr(args, "no_discover_google", False)
+
+    return PatentConfig(
+        company=company,
+        ids_file=Path(args.ids_file) if args.ids_file else None,
+        ids=tuple(args.ids) if args.ids else (),
+        assignee=args.assignee or "",
+        search_queries=tuple(args.search_queries) if args.search_queries else (),
+        cpc_filter=tuple(args.cpc_filter) if args.cpc_filter else (),
+        ipc_filter=tuple(args.ipc_filter) if args.ipc_filter else (),
+        wipo_categories=tuple(args.wipo_categories) if args.wipo_categories else (),
+        discover_via_google_patents=discover_google,
+        discover_via_search=args.discover_search,
+        discover_via_justia=args.discover_justia,
+        max_discovery_results=args.max_discovery,
+        delay=args.delay,
+        timeout=args.timeout,
+        output_dir=out_dir,
+        output_path=out_path,
+        jsonl_path=jsonl_path,
+        checkpoint_file=Path(args.checkpoint),
+        resume=args.resume,
+    )
+
+
+def _run_patents(args):
+    """Run the patent pipeline."""
+    logger = logging.getLogger(__name__)
+
+    # Handle --list-wipo-categories (print and exit)
+    if args.list_wipo_categories:
+        from .patents.wipo import list_wipo_categories
+        print("\nWIPO Technology Categories:")
+        print("=" * 50)
+        for cat in list_wipo_categories():
+            print(f"  {cat}")
+        print(f"\nTotal: {len(list_wipo_categories())} categories")
+        return
+
+    # Handle --reset
+    if args.reset:
+        cp = Path(args.checkpoint)
+        if cp.exists():
+            cp.unlink()
+            logger.info(f"Checkpoint reset: deleted {cp}")
+
+    from .patents.pipeline import PatentPipeline
+    from .patents.config import load_targets_file, PatentConfig
+
+    # --- Batch mode: targets file ---
+    if args.targets_file:
+        targets = load_targets_file(Path(args.targets_file))
+        if not targets:
+            logger.error("No targets found in targets file")
+            sys.exit(1)
+
+        for i, target in enumerate(targets):
+            logger.info(f"\n{'#' * 60}")
+            logger.info(f"TARGET {i+1}/{len(targets)}: {target.company}")
+            logger.info(f"{'#' * 60}")
+
+            # Build output paths per target
+            slug = target.company.lower().replace(" ", "_")
+            out_dir, out_path, jsonl_path = _build_patent_output_paths(args, slug)
+
+            # Merge target config with CLI overrides (delay, timeout, resume)
+            config = PatentConfig(
+                company=target.company,
+                ids_file=target.ids_file,
+                ids=target.ids,
+                assignee=target.assignee,
+                search_queries=target.search_queries,
+                cpc_filter=target.cpc_filter,
+                ipc_filter=target.ipc_filter,
+                wipo_categories=target.wipo_categories,
+                discover_via_google_patents=target.discover_via_google_patents,
+                discover_via_search=target.discover_via_search,
+                discover_via_justia=target.discover_via_justia,
+                max_discovery_results=target.max_discovery_results,
+                delay=args.delay,
+                timeout=args.timeout,
+                output_dir=out_dir,
+                output_path=out_path,
+                jsonl_path=jsonl_path,
+                checkpoint_file=Path(f".patent_checkpoint_{slug}.json"),
+                resume=args.resume,
+            )
+
+            pipeline = PatentPipeline(config)
+            pipeline.run()
+
+        return
+
+    # --- Single-target mode: inline args ---
+    has_source = (
+        args.ids_file
+        or args.ids
+        or (args.assignee and not getattr(args, "no_discover_google", False))
+        or args.discover_search
+        or args.discover_justia
+        or args.search_queries
+    )
+    if not has_source:
+        logger.error(
+            "No patent source specified. Use --targets-file for batch mode, or "
+            "--ids-file, --ids, --search-queries, --discover-search, "
+            "or --discover-justia for single-target mode."
+        )
+        sys.exit(1)
+
+    if not args.company:
+        logger.error("--company is required in single-target mode")
+        sys.exit(1)
+
+    config = build_patent_config(args)
+    pipeline = PatentPipeline(config)
+    pipeline.run()
+
+
 def main():
     p = argparse.ArgumentParser(
         description="Financial Web Scraper - search or deep-crawl modes",
@@ -434,10 +631,16 @@ def main():
     )
     _add_transcript_args(transcript_parser)
 
+    # "patents" subcommand
+    patent_parser = subparsers.add_parser(
+        "patents", help="Fetch patents and extract supply chain signals"
+    )
+    _add_patent_args(patent_parser)
+
     # For backward compatibility: if no subcommand, treat all args as search
     # We detect this by checking if any known search-only args are present
     argv = sys.argv[1:]
-    if argv and argv[0] not in ("search", "crawl", "transcripts", "-h", "--help"):
+    if argv and argv[0] not in ("search", "crawl", "transcripts", "patents", "-h", "--help"):
         # No subcommand given — prepend "search" for backward compat
         argv = ["search"] + argv
 
@@ -453,6 +656,8 @@ def main():
         _run_crawl(args)
     elif args.command == "transcripts":
         _run_transcripts(args)
+    elif args.command == "patents":
+        _run_patents(args)
     else:
         _run_search(args)
 
