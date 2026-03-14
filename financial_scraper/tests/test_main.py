@@ -31,6 +31,8 @@ def _make_args(**overrides):
         "tor_control_port": 9051,
         "tor_password": "",
         "tor_renew_every": 20,
+        "search_delay_min": 3.0,
+        "search_delay_max": 6.0,
         "concurrent": 10,
         "per_domain": 3,
         "timeout": 20,

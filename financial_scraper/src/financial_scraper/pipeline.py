@@ -155,16 +155,16 @@ class ScraperPipeline:
             total_success = 0
             total_failed = 0
 
+            throttler = DomainThrottler(
+                max_per_domain=self._config.max_concurrent_per_domain
+            )
+            robot_checker = RobotChecker()
+
             while urls_to_fetch:
                 depth_label = f"depth {current_depth}"
                 logger.info(
                     f"  [{depth_label}] Fetching {len(urls_to_fetch)} URLs"
                 )
-
-                throttler = DomainThrottler(
-                    max_per_domain=self._config.max_concurrent_per_domain
-                )
-                robot_checker = RobotChecker()
 
                 async with FetchClient(
                     self._config, throttler, robot_checker, self._tor
@@ -174,7 +174,6 @@ class ScraperPipeline:
                 next_depth_urls: list[str] = []
 
                 for url, fr in zip(urls_to_fetch, fetch_results):
-                    self._checkpoint.mark_url_fetched(url)
                     source_query = url_to_query.get(url, query)
 
                     if fr.error:
@@ -253,6 +252,7 @@ class ScraperPipeline:
                     if self._dedup.is_duplicate_content(ex.text):
                         continue
 
+                    self._checkpoint.mark_url_fetched(url)
                     self._dedup.mark_seen(url, ex.text)
                     self._method_counter[ex.extraction_method] += 1
                     domain = self._extract_domain(url)

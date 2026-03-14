@@ -133,10 +133,18 @@ class MarkdownWriter:
         self._path.parent.mkdir(parents=True, exist_ok=True)
 
         if self._path.exists():
-            # Append just the article sections (skip repeated header)
-            # Re-render as grouped sections without the top header
+            # Append just the article sections — strip the repeated report header
+            # The header is the first 3 lines: "# Financial Scraper Report", "", "> N articles..."
+            lines = block.split("\n")
+            # Find where the content sections start (after the header block)
+            start = 0
+            for i, line in enumerate(lines):
+                if line.startswith("---"):
+                    start = i
+                    break
+            body = "\n".join(lines[start:])
             with open(self._path, "a", encoding="utf-8") as f:
-                f.write("\n" + block)
+                f.write("\n" + body)
         else:
             with open(self._path, "w", encoding="utf-8") as f:
                 f.write(block)

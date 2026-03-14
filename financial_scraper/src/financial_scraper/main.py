@@ -85,8 +85,8 @@ def build_config(args) -> ScraperConfig:
     return ScraperConfig(
         queries_file=Path(args.queries_file),
         max_results_per_query=args.max_results,
-        search_delay_min=args.search_delay_min if hasattr(args, "search_delay_min") else 3.0,
-        search_delay_max=args.search_delay_max if hasattr(args, "search_delay_max") else 6.0,
+        search_delay_min=args.search_delay_min,
+        search_delay_max=args.search_delay_max,
         ddg_region=args.region,
         ddg_timelimit=args.timelimit,
         ddg_backend=args.backend,
@@ -174,6 +174,12 @@ def _add_search_args(p: argparse.ArgumentParser):
     p.add_argument("--tor-control-port", type=int, default=9051)
     p.add_argument("--tor-password", default="")
     p.add_argument("--tor-renew-every", type=int, default=20)
+
+    # Search delays
+    p.add_argument("--search-delay-min", type=float, default=3.0,
+                   help="Minimum delay between DDG searches in seconds (default: 3.0)")
+    p.add_argument("--search-delay-max", type=float, default=6.0,
+                   help="Maximum delay between DDG searches in seconds (default: 6.0)")
 
     # Fetch
     p.add_argument("--concurrent", type=int, default=10)

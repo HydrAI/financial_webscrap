@@ -221,7 +221,6 @@ class TranscriptPipeline:
                 try:
                     resp = session.get(info.url, timeout=30)
                 except Exception as e:
-                    throttler.release(domain)
                     if proxy_rotator:
                         proxy_rotator.report_error(proxy)
                     logger.warning(f"  Failed to fetch {info.url}: {e}")
@@ -289,12 +288,15 @@ class TranscriptPipeline:
                 # FMP uses its own HTTP client; pass a plain requests session
                 import requests
                 fmp_session = requests.Session()
-                fmp_result = fmp.get_transcript(
-                    info.ticker, info.quarter, info.year, fmp_session
-                )
-                if fmp_result and fmp_result.full_text:
-                    time.sleep(1.0)
-                    return info, fmp_result, "success"
+                try:
+                    fmp_result = fmp.get_transcript(
+                        info.ticker, info.quarter, info.year, fmp_session
+                    )
+                    if fmp_result and fmp_result.full_text:
+                        time.sleep(1.0)
+                        return info, fmp_result, "success"
+                finally:
+                    fmp_session.close()
 
             # Browser fallback
             if http_failed and browser:

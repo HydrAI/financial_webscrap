@@ -65,6 +65,7 @@ class BrowserFetcher:
             Rendered HTML string, or None on failure.
         """
         self._ensure_browser()
+        context = None
         page = None
         try:
             context = self._browser.new_context(
@@ -96,6 +97,11 @@ class BrowserFetcher:
             if page:
                 try:
                     page.close()
+                except Exception:
+                    pass
+            if context:
+                try:
+                    context.close()
                 except Exception:
                     pass
 

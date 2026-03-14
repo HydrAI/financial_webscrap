@@ -202,7 +202,6 @@ def fetch_patent(
         try:
             resp = session.get(url, headers=HEADERS, timeout=timeout)
         except Exception as e:
-            throttler.release(GOOGLE_PATENTS_DOMAIN)
             logger.warning(f"  Request failed for {patent_id}: {e}")
             return PatentDetail(patent_id=patent_id, url=url, error=str(e))
         finally:

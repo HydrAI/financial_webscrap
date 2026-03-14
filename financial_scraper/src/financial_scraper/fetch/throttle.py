@@ -59,7 +59,9 @@ class DomainThrottler:
     def report_failure(self, domain: str, status: int,
                        retry_after: float | None = None):
         """Increase delay based on failure type."""
-        current = self._extra_delays.get(domain, 1.0) or 1.0
+        current = self._extra_delays.get(domain, 1.0)
+        if current == 0:
+            current = 1.0
         if status == 429:
             if retry_after is not None:
                 self._extra_delays[domain] = min(retry_after, self._max_delay)
@@ -134,7 +136,9 @@ class SyncDomainThrottler:
     def report_failure(self, domain: str, status: int):
         """Increase delay based on failure status code."""
         with self._lock:
-            current = self._delays.get(domain, self._base_delay) or self._base_delay
+            current = self._delays.get(domain, self._base_delay)
+            if current == 0:
+                current = self._base_delay
             if status == 429:
                 self._delays[domain] = min(current * 3, self._max_delay)
             elif status in (401, 403):
