@@ -339,8 +339,16 @@ class TestRunFunctions:
         args = _make_crawl_args(output_dir=str(tmp_path), urls_file=str(uf))
         args.reset = False
 
-        with patch("financial_scraper.crawl.pipeline.CrawlPipeline") as MockPipeline:
-            MockPipeline.return_value = MagicMock()
+        # crawl4ai is an optional dependency — stub the entire module chain
+        # so the lazy import inside _run_crawl() succeeds without crawl4ai
+        mock_pipeline_mod = MagicMock()
+        MockPipeline = mock_pipeline_mod.CrawlPipeline
+        MockPipeline.return_value = MagicMock()
+
+        with patch.dict("sys.modules", {
+            "crawl4ai": MagicMock(),
+            "financial_scraper.crawl.pipeline": mock_pipeline_mod,
+        }):
             with patch("financial_scraper.main.asyncio.run"):
                 _run_crawl(args)
         MockPipeline.assert_called_once()
