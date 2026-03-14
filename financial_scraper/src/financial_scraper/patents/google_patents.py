@@ -175,7 +175,7 @@ def parse_patent_page(html: str, patent_id: str) -> PatentDetail:
         if title_elem:
             result.title = title_elem.get_text(strip=True)
 
-    # Full page text for signal extraction
+    # Full page text for downstream analysis
     result.full_text = soup.get_text(separator="\n", strip=True)
 
     return result

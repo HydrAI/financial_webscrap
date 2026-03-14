@@ -1,4 +1,4 @@
-"""Patent pipeline: discover -> fetch -> filter -> extract signals -> store."""
+"""Patent pipeline: discover -> fetch -> filter -> store."""
 
 import json
 import logging
@@ -14,7 +14,6 @@ from .discovery import discover_patent_ids
 from .google_patents import PatentDetail, fetch_patent
 from .normalize import normalize_assignee, are_same_assignee
 from .uspto_fetcher import fetch_patent_from_uspto
-from .signals import SupplyChainSignals, extract_signals
 from .wipo import resolve_wipo_to_cpc
 from ..checkpoint import Checkpoint
 from ..fetch.throttle import SyncDomainThrottler
@@ -24,7 +23,7 @@ logger = logging.getLogger(__name__)
 
 
 class PatentPipeline:
-    """Discover, fetch, filter, and extract supply chain signals from patents."""
+    """Discover, fetch, filter, and store patent data."""
 
     def __init__(self, config: PatentConfig):
         self._config = config
@@ -87,7 +86,6 @@ class PatentPipeline:
 
         if not to_fetch:
             logger.info("All patents already fetched. Use --reset to re-fetch.")
-            # Still process signals from checkpoint data if needed
             return
 
         # 4. Resolve classification filters
@@ -221,37 +219,7 @@ class PatentPipeline:
             logger.info("No patents remaining after filtering")
             return
 
-        # 7. Extract supply chain signals
-        logger.info("")
-        logger.info("=" * 60)
-        logger.info("Extracting supply chain signals")
-        logger.info("=" * 60)
-
-        all_signals: list[SupplyChainSignals] = []
-        for patent in fetched:
-            sig = extract_signals(patent)
-            all_signals.append(sig)
-
-            has_any = any([
-                sig.components, sig.materials, sig.companies_mentioned,
-                sig.frequencies, sig.standards, sig.processes,
-            ])
-            if has_any:
-                logger.info(f"  {sig.patent_id} - {sig.title[:60]}")
-                if sig.components:
-                    logger.info(f"    Components:  {', '.join(sig.components[:10])}")
-                if sig.materials:
-                    logger.info(f"    Materials:   {', '.join(sig.materials[:10])}")
-                if sig.companies_mentioned:
-                    logger.info(f"    Companies:   {', '.join(sig.companies_mentioned[:10])}")
-                if sig.frequencies:
-                    logger.info(f"    Frequencies: {', '.join(sig.frequencies[:10])}")
-                if sig.standards:
-                    logger.info(f"    Standards:   {', '.join(sig.standards[:10])}")
-                if sig.processes:
-                    logger.info(f"    Processes:   {', '.join(sig.processes[:10])}")
-
-        # 8. Normalize assignees
+        # 7. Normalize assignees
         assignee_map: dict[str, str] = {}
         for patent in fetched:
             raw = patent.assignee
@@ -265,7 +233,7 @@ class PatentPipeline:
         if len(assignee_map) > 1:
             logger.info(f"Assignees found: {list(assignee_map.values())}")
 
-        # 9. Store records
+        # 8. Store records
         logger.info("")
         logger.info("=" * 60)
         logger.info("Saving results")
@@ -273,7 +241,7 @@ class PatentPipeline:
 
         company_slug = config.company.lower().replace(" ", "_")
 
-        # 9a. Parquet + JSONL (standard schema for KG pipeline)
+        # 8a. Parquet + JSONL (standard schema)
         records = []
         for patent in fetched:
             snippet = (
@@ -297,7 +265,7 @@ class PatentPipeline:
             if self._jsonl:
                 self._jsonl.append(records)
 
-        # 9b. Patent details JSONL (full metadata without full_text)
+        # 8b. Patent details JSONL (full metadata without full_text)
         details_file = config.output_dir / f"{company_slug}_patents.jsonl"
         with open(details_file, "w", encoding="utf-8") as f:
             for patent in fetched:
@@ -323,49 +291,7 @@ class PatentPipeline:
                 f.write(json.dumps(save, ensure_ascii=False) + "\n")
         logger.info(f"Patent details: {details_file}")
 
-        # 9c. Supply chain signals JSON (aggregate + per-patent)
-        agg: dict[str, set[str]] = {
-            "components": set(),
-            "materials": set(),
-            "companies_mentioned": set(),
-            "frequencies": set(),
-            "standards": set(),
-            "processes": set(),
-        }
-        signals_dicts = []
-        for sig in all_signals:
-            sig_dict = {
-                "patent_id": sig.patent_id,
-                "title": sig.title,
-                "assignee": sig.assignee,
-                "components": sig.components,
-                "materials": sig.materials,
-                "companies_mentioned": sig.companies_mentioned,
-                "frequencies": sig.frequencies,
-                "standards": sig.standards,
-                "processes": sig.processes,
-            }
-            signals_dicts.append(sig_dict)
-            for key in agg:
-                agg[key].update(getattr(sig, key))
-
-        signals_file = config.output_dir / f"{company_slug}_supply_chain_signals.json"
-        with open(signals_file, "w", encoding="utf-8") as f:
-            json.dump(
-                {
-                    "company": config.company,
-                    "patents_found": len(patent_ids),
-                    "patents_analyzed": len(fetched),
-                    "aggregate_signals": {k: sorted(v) for k, v in agg.items()},
-                    "per_patent_signals": signals_dicts,
-                },
-                f,
-                indent=2,
-                ensure_ascii=False,
-            )
-        logger.info(f"Supply chain signals: {signals_file}")
-
-        # 10. Summary
+        # 9. Summary
         logger.info("")
         logger.info("=" * 60)
         logger.info("PATENT PIPELINE SUMMARY")
@@ -374,12 +300,6 @@ class PatentPipeline:
         logger.info(f"  Patents fetched:        {stats['fetched']}")
         logger.info(f"  Patents failed:         {stats['failed']}")
         logger.info(f"  Patents after filter:   {len(fetched)}")
-        logger.info(f"  Unique components:      {len(agg['components'])}")
-        logger.info(f"  Unique materials:       {len(agg['materials'])}")
-        logger.info(f"  Companies mentioned:    {len(agg['companies_mentioned'])}")
-        logger.info(f"  Frequency bands:        {len(agg['frequencies'])}")
-        logger.info(f"  Standards/protocols:    {len(agg['standards'])}")
-        logger.info(f"  Manufacturing processes: {len(agg['processes'])}")
         logger.info(f"  Output: {config.output_dir}")
         logger.info("=" * 60)
 

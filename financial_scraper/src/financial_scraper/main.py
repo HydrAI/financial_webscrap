@@ -647,7 +647,7 @@ def main():
 
     # "patents" subcommand
     patent_parser = subparsers.add_parser(
-        "patents", help="Fetch patents and extract supply chain signals"
+        "patents", help="Discover and fetch patent data by assignee or topic"
     )
     _add_patent_args(patent_parser)
 

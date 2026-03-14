@@ -1,6 +1,6 @@
 # financial-scraper
 
-Ethical, modular web scraper for financial research. Three modes: DuckDuckGo search (text/news), deep URL crawling (crawl4ai headless browser), and earnings call transcript downloading (multi-source: Motley Fool, AlphaStreet, Seeking Alpha). Outputs to Parquet.
+Ethical, modular web scraper for financial research. Four modes: DuckDuckGo search (text/news), deep URL crawling (crawl4ai headless browser), earnings call transcript downloading (multi-source: Motley Fool, AlphaStreet, Seeking Alpha), and patent data acquisition (Google Patents, PatentsView). Outputs to Parquet.
 
 ![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue)
 ![Tests](https://img.shields.io/badge/tests-439%20passed-brightgreen)
@@ -16,6 +16,7 @@ Ethical, modular web scraper for financial research. Three modes: DuckDuckGo sea
 - **Async HTTP**, aiohttp with configurable concurrency and per-domain throttling
 - **HTML + PDF extraction**, trafilatura 2-pass for HTML, pdfplumber or Docling for PDFs (layout-aware with table detection)
 - **Content deduplication**, URL normalization + SHA256 exact hash + MinHash LSH fuzzy near-duplicate detection
+- **Patent data acquisition**, discover and fetch patent metadata and full text by assignee, topic, or classification (Google Patents XHR, PatentsView bulk, DuckDuckGo, Justia). Supports CPC/IPC/WIPO filtering, batch targets via JSON config
 - **Earnings transcripts**, download structured earnings call transcripts by ticker from 5 sources (Motley Fool, AlphaStreet, Seeking Alpha via Wayback, Motley Fool via Wayback). Covers 2007-2026 with 27,800+ transcripts across 1,425 tickers (94% of US10002 universe). Two-round quality pipeline ensures clean data (0 artifacts, 0 misassignments)
 - **Checkpoint/resume**, atomic saves after each query, crash recovery
 - **Fingerprint rotation**, 5 browser profiles to reduce bot detection
@@ -42,6 +43,9 @@ financial-scraper crawl --urls-file urls.txt --max-depth 2 --output-dir ./runs
 
 # Transcripts mode — download earnings call transcripts by ticker
 financial-scraper transcripts --tickers AAPL MSFT --year 2025 --output-dir ./runs
+
+# Patents mode — discover and fetch patent data by assignee
+financial-scraper patents --company "NVIDIA" --assignee "NVIDIA Corporation" --granted-only --limit 20 --output-dir ./runs
 ```
 
 ---
@@ -384,6 +388,39 @@ financial-scraper transcripts --tickers AAPL MSFT [OPTIONS]
 | `--output-dir DIR` | `.` | Base directory for timestamped output folders |
 | `--jsonl` | off | Also write JSONL output |
 | `--checkpoint FILE` | `.transcript_checkpoint.json` | Checkpoint file path |
+| `--resume` | off | Resume from last checkpoint |
+| `--reset` | off | Delete checkpoint before running |
+
+### `patents` subcommand
+
+Discover and fetch patent data by assignee, topic keywords, or classification codes.
+
+```bash
+financial-scraper patents --company "NVIDIA" --assignee "NVIDIA Corporation" [OPTIONS]
+```
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--targets-file FILE` | - | JSON config with multiple companies/themes (batch mode) |
+| `--company NAME` | *required* | Company name for labeling output |
+| `--assignee NAME` | - | Assignee name for patent discovery |
+| `--ids-file FILE` | - | File with patent IDs (one per line) |
+| `--ids ID ...` | - | Patent IDs to fetch (inline) |
+| `--search-queries Q ...` | - | Keywords to discover patents by topic |
+| `--discover-search` | off | Also discover via DuckDuckGo |
+| `--discover-justia` | off | Also discover via Justia |
+| `--max-discovery N` | `50` | Max patent IDs to discover per source |
+| `--cpc-filter CODE ...` | - | Keep only patents matching CPC prefix(es) |
+| `--ipc-filter CODE ...` | - | Keep only patents matching IPC prefix(es) |
+| `--wipo-categories CAT ...` | - | Filter by WIPO technology category (resolved to CPC) |
+| `--list-wipo-categories` | - | Print all WIPO categories and exit |
+| `--granted-only` | off | Only include granted patents |
+| `--limit N` | `0` | Top N most recent patents (0 = unlimited) |
+| `--delay SECS` | `4.0` | Base delay between requests |
+| `--timeout SECS` | `30` | HTTP timeout |
+| `--output-dir DIR` | `.` | Base directory for output |
+| `--jsonl` | off | Also write JSONL output |
+| `--checkpoint FILE` | `.patent_checkpoint.json` | Checkpoint file path |
 | `--resume` | off | Resume from last checkpoint |
 | `--reset` | off | Delete checkpoint before running |
 
