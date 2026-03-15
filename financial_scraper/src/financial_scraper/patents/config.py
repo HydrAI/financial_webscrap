@@ -46,6 +46,16 @@ class PatentConfig:
     checkpoint_file: Path = Path(".patent_checkpoint.json")
     resume: bool = False
 
+    # BigQuery source
+    source: str = "google"
+    bq_csv_path: Path | None = None
+    bq_company_column: str = "name"
+    bq_country_filter: str = "US"
+    bq_include_description: bool = False
+    bq_batch_size: int = 50
+    bq_dry_run: bool = False
+    bq_project_id: str | None = None
+
 
 def load_targets_file(path: Path) -> list[PatentConfig]:
     """Load patent targets from a JSON config file.

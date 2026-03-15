@@ -418,6 +418,26 @@ def _run_transcripts(args):
 
 def _add_patent_args(p: argparse.ArgumentParser):
     """Add arguments for the patents subcommand."""
+    # Data source
+    p.add_argument("--source", choices=["google", "bigquery"], default="google",
+                   help="Patent data source (default: google)")
+
+    # BigQuery options
+    p.add_argument("--bq-csv", default=None,
+                   help="CSV file with company names (required for --source bigquery)")
+    p.add_argument("--bq-company-column", default="name",
+                   help="CSV column containing company names (default: name)")
+    p.add_argument("--bq-country", default="US",
+                   help="Country code filter for BigQuery (default: US)")
+    p.add_argument("--bq-include-description", action="store_true",
+                   help="Include full patent description text (large)")
+    p.add_argument("--bq-batch-size", type=int, default=50,
+                   help="Companies per BigQuery batch (default: 50)")
+    p.add_argument("--bq-dry-run", action="store_true",
+                   help="Estimate BigQuery cost without executing")
+    p.add_argument("--bq-project", default=None,
+                   help="GCP project ID for BigQuery billing")
+
     # Batch mode — targets file
     p.add_argument("--targets-file", default=None,
                    help="JSON config with multiple companies and/or themes "
@@ -547,6 +567,45 @@ def _run_patents(args):
         if cp.exists():
             cp.unlink()
             logger.info(f"Checkpoint reset: deleted {cp}")
+
+    # --- BigQuery source ---
+    if args.source == "bigquery":
+        if not args.bq_csv:
+            logger.error("--bq-csv is required when using --source bigquery")
+            sys.exit(1)
+
+        from .patents.bigquery_pipeline import BigQueryPatentPipeline, BigQueryConfig
+
+        ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+        base = Path(args.output_dir) if args.output_dir else Path(".")
+        out_dir = base / f"bq_patents_{ts}"
+        out_dir.mkdir(parents=True, exist_ok=True)
+
+        out_path = out_dir / f"patents_{ts}.parquet"
+        jsonl_path = out_dir / f"patents_{ts}.jsonl" if args.jsonl else None
+
+        bq_config = BigQueryConfig(
+            csv_path=Path(args.bq_csv),
+            company_column=args.bq_company_column,
+            country_filter=args.bq_country,
+            include_description=args.bq_include_description,
+            batch_size=args.bq_batch_size,
+            dry_run=args.bq_dry_run,
+            project_id=args.bq_project,
+            granted_only=args.granted_only,
+            cpc_filter=tuple(args.cpc_filter) if args.cpc_filter else (),
+            ipc_filter=tuple(args.ipc_filter) if args.ipc_filter else (),
+            limit=args.limit,
+            output_dir=out_dir,
+            output_path=out_path,
+            jsonl_path=jsonl_path,
+            checkpoint_file=Path(args.checkpoint),
+            resume=args.resume,
+        )
+
+        pipeline = BigQueryPatentPipeline(bq_config)
+        pipeline.run()
+        return
 
     from .patents.pipeline import PatentPipeline
     from .patents.config import load_targets_file, PatentConfig
