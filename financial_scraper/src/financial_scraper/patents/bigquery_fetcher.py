@@ -248,18 +248,74 @@ def bq_row_to_patent_detail(
 
 # ── Company matching ─────────────────────────────────────────────────────
 
+class CompanyMatcher:
+    """Fast company matching using pre-built normalized-name index.
+
+    Build once with :meth:`from_names`, then call :meth:`match` per row.
+    Uses O(1) exact-match dict lookup, with a cached substring fallback.
+    """
+
+    def __init__(
+        self,
+        exact: dict[str, str],
+        names_upper: list[tuple[str, str]],
+    ):
+        self._exact = exact            # normalized -> original
+        self._names_upper = names_upper  # [(NORMALIZED_UPPER, original), ...]
+        self._cache: dict[str, str] = {}  # assignee -> matched company
+
+    @classmethod
+    def from_names(cls, company_names: list[str]) -> "CompanyMatcher":
+        exact: dict[str, str] = {}
+        names_upper: list[tuple[str, str]] = []
+        for name in company_names:
+            norm = normalize_assignee(name)
+            if norm:
+                exact[norm] = name
+                names_upper.append((norm.upper(), name))
+        return cls(exact, names_upper)
+
+    def match(self, assignee_name: str) -> str:
+        if not assignee_name:
+            return ""
+
+        # Check cache first
+        cached = self._cache.get(assignee_name)
+        if cached is not None:
+            return cached
+
+        norm = normalize_assignee(assignee_name)
+        if not norm:
+            self._cache[assignee_name] = ""
+            return ""
+
+        # 1. Exact normalized match (O(1))
+        hit = self._exact.get(norm)
+        if hit:
+            self._cache[assignee_name] = hit
+            return hit
+
+        # 2. Substring: is any company name contained in the assignee?
+        norm_upper = norm.upper()
+        for comp_upper, original in self._names_upper:
+            if comp_upper in norm_upper:
+                self._cache[assignee_name] = original
+                return original
+
+        self._cache[assignee_name] = ""
+        return ""
+
+
 def match_company(assignee_name: str, company_names: list[str]) -> str:
     """Find the best matching company for an assignee name.
 
-    Uses :func:`are_same_assignee` from ``normalize.py``.
-    Returns the matched company name, or empty string if no match.
+    For bulk use, prefer :class:`CompanyMatcher` which pre-indexes names.
     """
     if not assignee_name:
         return ""
     for name in company_names:
         if are_same_assignee(assignee_name, name):
             return name
-    # Fallback: substring match on normalized names
     norm_assignee = normalize_assignee(assignee_name).upper()
     for name in company_names:
         norm_company = normalize_assignee(name).upper()

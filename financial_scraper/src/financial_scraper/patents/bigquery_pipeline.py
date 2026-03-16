@@ -1,7 +1,8 @@
 """BigQuery-based patent pipeline.
 
 Reads company names from a CSV, queries the BigQuery public patents
-dataset in batches, and stores results in the same Parquet + JSONL
+dataset with a **single query** containing all companies (to avoid
+redundant column scans), and stores results in the same Parquet + JSONL
 format as the Google Patents scraping pipeline.
 
 Requires ``pip install financial-scraper[bigquery]`` and
@@ -10,6 +11,7 @@ Requires ``pip install financial-scraper[bigquery]`` and
 
 import json
 import logging
+import re
 import signal
 from dataclasses import dataclass
 from pathlib import Path
@@ -21,6 +23,15 @@ from ..checkpoint import Checkpoint
 from ..store.output import ParquetWriter, JSONLWriter
 
 logger = logging.getLogger(__name__)
+
+# Characters illegal in Windows filenames
+_UNSAFE_CHARS = re.compile(r'[<>:"/\\|?*]')
+
+
+def _safe_slug(name: str) -> str:
+    """Convert a company name to a filesystem-safe slug."""
+    slug = name.lower().replace(" ", "_")
+    return _UNSAFE_CHARS.sub("", slug)
 
 
 @dataclass(frozen=True)
@@ -108,7 +119,7 @@ class BigQueryPatentPipeline:
         if cfg.resume:
             self._checkpoint.load()
             logger.info(
-                f"Resumed: {len(self._checkpoint.completed_queries)} batches done"
+                f"Resumed: {len(self._checkpoint.fetched_urls)} patents already stored"
             )
 
         # 4. Load companies from CSV
@@ -116,7 +127,7 @@ class BigQueryPatentPipeline:
             load_companies_from_csv,
             build_query,
             bq_row_to_patent_detail,
-            match_company,
+            CompanyMatcher,
         )
 
         rows = load_companies_from_csv(cfg.csv_path, column=cfg.company_column)
@@ -129,189 +140,160 @@ class BigQueryPatentPipeline:
             logger.error("No company names found in CSV")
             return
 
-        # 5. Split into batches
-        batches: list[list[str]] = []
-        for i in range(0, len(company_names), cfg.batch_size):
-            batches.append(company_names[i : i + cfg.batch_size])
-
         logger.info("=" * 60)
-        logger.info(f"BigQuery Patent Pipeline")
+        logger.info("BigQuery Patent Pipeline")
         logger.info(f"  Companies: {len(company_names)}")
-        logger.info(f"  Batches:   {len(batches)} (size={cfg.batch_size})")
         logger.info(f"  Country:   {cfg.country_filter}")
         logger.info(f"  Granted:   {cfg.granted_only}")
         logger.info("=" * 60)
 
-        # 6. Dry run: estimate cost per batch
+        # 5. Build a SINGLE query with all companies
+        #    BigQuery scans columns once regardless of WHERE clause size,
+        #    so one query = ~376 GB instead of N batches × 376 GB.
+        sql = build_query(
+            company_names,
+            granted_only=cfg.granted_only,
+            include_description=cfg.include_description,
+            country=cfg.country_filter,
+        )
+
+        # 6. Dry run: estimate cost for the single query
         if cfg.dry_run:
-            self._dry_run(client, bigquery, batches, cfg)
+            self._dry_run(client, bigquery, sql)
             return
 
-        # 7. Process batches
-        total_patents = 0
-        total_stored = 0
+        # 7. Build fast matcher index
+        matcher = CompanyMatcher.from_names(company_names)
 
-        for batch_idx, batch in enumerate(batches):
+        # 8. Execute query and stream results
+        logger.info("Executing BigQuery query (this may take a few minutes)...")
+
+        try:
+            query_job = client.query(sql)
+            result_iter = query_job.result()
+            total_rows = result_iter.total_rows
+            logger.info(f"Query complete: {total_rows:,} raw patent rows")
+        except Exception as e:
+            logger.error(f"BigQuery error: {e}")
+            return
+
+        # 9. Process results in pages, matching to companies
+        #    We process in memory-friendly pages from the BigQuery iterator
+        #    and flush to disk periodically.
+        patents_by_company: dict[str, list[PatentDetail]] = {}
+        total_raw = 0
+        total_matched = 0
+
+        page_num = 0
+        for page in result_iter.pages:
             if self._shutdown_requested:
                 logger.warning("Shutdown requested — stopping")
                 break
 
-            batch_key = f"batch_{batch_idx}_{batch[0]}"
-
-            # Skip completed batches
-            if self._checkpoint.is_query_done(batch_key):
-                logger.info(
-                    f"Batch {batch_idx + 1}/{len(batches)}: "
-                    f"already done (checkpoint), skipping"
-                )
-                continue
-
-            logger.info("")
-            logger.info(
-                f"Batch {batch_idx + 1}/{len(batches)}: "
-                f"{len(batch)} companies ({batch[0]} ... {batch[-1]})"
-            )
-
-            # Build and execute query
-            sql = build_query(
-                batch,
-                granted_only=cfg.granted_only,
-                include_description=cfg.include_description,
-                country=cfg.country_filter,
-            )
-
-            try:
-                query_job = client.query(sql)
-                results = list(query_job.result())
-            except Exception as e:
-                logger.error(f"  BigQuery error: {e}")
-                continue
-
-            logger.info(f"  Raw results: {len(results)} patents")
-            total_patents += len(results)
-
-            if not results:
-                self._checkpoint.mark_query_done(batch_key)
-                continue
-
-            # Map rows to PatentDetail and post-filter with are_same_assignee
-            patents_by_company: dict[str, list[PatentDetail]] = {}
-
-            for row in results:
+            for row in page:
+                total_raw += 1
                 detail = bq_row_to_patent_detail(
                     row, "", include_description=cfg.include_description
                 )
 
-                # Match to a company in the batch
-                matched = match_company(detail.assignee, batch)
+                # Skip already-stored patents (resume support)
+                if self._checkpoint.is_url_fetched(detail.patent_id):
+                    continue
+
+                # Match to a company (O(1) lookup via pre-built index)
+                matched = matcher.match(detail.assignee)
                 if not matched:
                     continue
 
-                detail = PatentDetail(
-                    patent_id=detail.patent_id,
-                    url=detail.url,
-                    title=detail.title,
-                    abstract=detail.abstract,
-                    patent_number=detail.patent_number,
-                    application_number=detail.application_number,
-                    date_filed=detail.date_filed,
-                    date_granted=detail.date_granted,
-                    assignee=detail.assignee,
-                    inventors=detail.inventors,
-                    classifications_cpc=detail.classifications_cpc,
-                    classifications_ipc=detail.classifications_ipc,
-                    citations_backward=detail.citations_backward,
-                    citations_forward=detail.citations_forward,
-                    non_patent_citations=detail.non_patent_citations,
-                    pdf_url=detail.pdf_url,
-                    full_text=detail.full_text,
-                    expiration_date=detail.expiration_date,
-                )
-
+                total_matched += 1
                 patents_by_company.setdefault(matched, []).append(detail)
+                self._checkpoint.mark_url_fetched(detail.patent_id)
 
-            # Apply classification filters
-            if cfg.cpc_filter or cfg.ipc_filter:
-                cpc_prefixes = list(cfg.cpc_filter)
-                ipc_prefixes = list(cfg.ipc_filter)
-                for company in patents_by_company:
-                    patents_by_company[company] = [
-                        p for p in patents_by_company[company]
-                        if self._matches_classification(p, cpc_prefixes, ipc_prefixes)
-                    ]
+            page_num += 1
+            if page_num % 10 == 0:
+                logger.info(
+                    f"  Processed {total_raw:,} rows, "
+                    f"{total_matched:,} matched so far..."
+                )
+                self._checkpoint.save_if_due(120)
 
-            # Apply limit per company
-            if cfg.limit > 0:
-                for company in patents_by_company:
-                    patents = patents_by_company[company]
-                    patents.sort(
-                        key=lambda p: p.date_granted or p.date_filed or "",
-                        reverse=True,
-                    )
-                    patents_by_company[company] = patents[: cfg.limit]
+                # Flush to disk periodically to limit memory usage
+                if len(patents_by_company) >= cfg.batch_size:
+                    self._flush_to_disk(patents_by_company, cfg)
+                    patents_by_company.clear()
 
-            # Store results
-            batch_stored = self._store_batch(patents_by_company)
-            total_stored += batch_stored
+        # Save checkpoint after streaming
+        self._checkpoint.save()
 
-            # Mark batch done
-            self._checkpoint.mark_query_done(batch_key)
+        # 9. Apply classification filters
+        if cfg.cpc_filter or cfg.ipc_filter:
+            cpc_prefixes = list(cfg.cpc_filter)
+            ipc_prefixes = list(cfg.ipc_filter)
+            for company in list(patents_by_company):
+                patents_by_company[company] = [
+                    p for p in patents_by_company[company]
+                    if self._matches_classification(p, cpc_prefixes, ipc_prefixes)
+                ]
 
-        # Summary
+        # 10. Apply limit per company
+        if cfg.limit > 0:
+            for company in patents_by_company:
+                patents = patents_by_company[company]
+                patents.sort(
+                    key=lambda p: p.date_granted or p.date_filed or "",
+                    reverse=True,
+                )
+                patents_by_company[company] = patents[: cfg.limit]
+
+        # 11. Store remaining results
+        total_stored = self._flush_to_disk(patents_by_company, cfg)
+
+        # 12. Summary
         logger.info("")
         logger.info("=" * 60)
         logger.info("BIGQUERY PATENT PIPELINE SUMMARY")
         logger.info("=" * 60)
         logger.info(f"  Companies queried:  {len(company_names)}")
-        logger.info(f"  Raw patents found:  {total_patents}")
-        logger.info(f"  Patents stored:     {total_stored}")
+        logger.info(f"  Raw patent rows:    {total_raw:,}")
+        logger.info(f"  Matched to companies: {total_matched:,}")
+        logger.info(f"  Stored this run:    {total_stored:,}")
         logger.info(f"  Output:             {cfg.output_dir}")
         logger.info("=" * 60)
 
-    def _dry_run(self, client, bigquery_module, batches, cfg):
-        """Run all queries with ``dry_run=True`` to estimate bytes scanned."""
-        total_bytes = 0
-
-        for batch_idx, batch in enumerate(batches):
-            from .bigquery_fetcher import build_query
-
-            sql = build_query(
-                batch,
-                granted_only=cfg.granted_only,
-                include_description=cfg.include_description,
-                country=cfg.country_filter,
-            )
-
-            job_config = bigquery_module.QueryJobConfig(dry_run=True, use_query_cache=False)
-            try:
-                query_job = client.query(sql, job_config=job_config)
-                batch_bytes = query_job.total_bytes_processed or 0
-                total_bytes += batch_bytes
-                logger.info(
-                    f"  Batch {batch_idx + 1}/{len(batches)}: "
-                    f"{batch_bytes / 1e9:.2f} GB"
-                )
-            except Exception as e:
-                logger.error(f"  Batch {batch_idx + 1} dry run error: {e}")
+    def _dry_run(self, client, bigquery_module, sql: str):
+        """Run the query with ``dry_run=True`` to estimate bytes scanned."""
+        job_config = bigquery_module.QueryJobConfig(dry_run=True, use_query_cache=False)
+        try:
+            query_job = client.query(sql, job_config=job_config)
+            total_bytes = query_job.total_bytes_processed or 0
+        except Exception as e:
+            logger.error(f"Dry run error: {e}")
+            return
 
         gb = total_bytes / 1e9
         tb = total_bytes / 1e12
-        cost = tb * 6.25  # $6.25/TB after free tier
+        cost_if_over = max(0, tb - 1.0) * 6.25  # $6.25/TB after 1 TB free tier
 
         logger.info("")
         logger.info("=" * 60)
-        logger.info("DRY RUN COST ESTIMATE")
+        logger.info("DRY RUN COST ESTIMATE (single query, all companies)")
         logger.info("=" * 60)
-        logger.info(f"  Total bytes:   {total_bytes:,}")
-        logger.info(f"  Total GB:      {gb:.2f}")
-        logger.info(f"  Free tier:     1 TB/month")
-        logger.info(f"  Est. cost:     ${cost:.2f} (after free tier)")
+        logger.info(f"  Bytes scanned:  {total_bytes:,}")
+        logger.info(f"  GB scanned:     {gb:.2f}")
+        logger.info(f"  Free tier:      1 TB/month (1,000 GB)")
+        if gb <= 1000:
+            logger.info(f"  Cost:           FREE ({gb:.0f}/{1000} GB of free tier)")
+        else:
+            logger.info(f"  Cost:           ${cost_if_over:.2f} (exceeds free tier)")
         logger.info("=" * 60)
 
-    def _store_batch(
-        self, patents_by_company: dict[str, list[PatentDetail]]
+    def _flush_to_disk(
+        self, patents_by_company: dict[str, list[PatentDetail]], cfg=None
     ) -> int:
-        """Store a batch of patents. Returns count of patents stored."""
+        """Store patents to disk. Returns count of patents stored."""
+        if cfg is None:
+            cfg = self._config
+
         all_records: list[dict] = []
         total = 0
 
@@ -319,7 +301,7 @@ class BigQueryPatentPipeline:
             if not patents:
                 continue
 
-            company_slug = company.lower().replace(" ", "_")
+            company_slug = _safe_slug(company)
 
             # Standard Parquet/JSONL records
             for patent in patents:
@@ -400,7 +382,7 @@ class BigQueryPatentPipeline:
         if self._shutdown_requested:
             raise KeyboardInterrupt
         logger.warning(
-            "Shutdown requested — finishing current batch and saving checkpoint..."
+            "Shutdown requested — finishing current page and saving checkpoint..."
         )
         self._shutdown_requested = True
         self._checkpoint.save()
