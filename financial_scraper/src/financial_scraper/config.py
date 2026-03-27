@@ -53,9 +53,10 @@ class ScraperConfig:
     markdown_path: Path | None = None
     exclude_file: Path | None = None
 
-    # PDF saving
-    save_pdfs: bool = False
+    # Raw document saving (PDFs + HTML)
+    save_raw: bool = False
     pdf_dir: Path | None = None
+    html_dir: Path | None = None
 
     # Checkpoint
     checkpoint_file: Path = Path(".scraper_checkpoint.json")

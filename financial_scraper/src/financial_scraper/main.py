@@ -115,8 +115,9 @@ def build_config(args) -> ScraperConfig:
         jsonl_path=jsonl_path,
         markdown_path=markdown_path,
         exclude_file=_resolve_exclude_file(args),
-        save_pdfs=args.save_pdfs,
-        pdf_dir=out_dir / "pdfs" if args.save_pdfs else None,
+        save_raw=args.save_raw,
+        pdf_dir=out_dir / "pdfs" if args.save_raw else None,
+        html_dir=out_dir / "html" if args.save_raw else None,
         checkpoint_file=Path(args.checkpoint),
         resume=args.resume,
         reset_queries=args.reset_queries,
@@ -150,8 +151,9 @@ def build_crawl_config(args):
         checkpoint_file=Path(args.checkpoint),
         resume=args.resume,
         pdf_extractor=args.pdf_extractor,
-        save_pdfs=args.save_pdfs,
-        pdf_dir=out_dir / "pdfs" if args.save_pdfs else None,
+        save_raw=args.save_raw,
+        pdf_dir=out_dir / "pdfs" if args.save_raw else None,
+        html_dir=out_dir / "html" if args.save_raw else None,
         check_robots_txt=not args.no_robots,
         stealth=args.stealth,
     )
@@ -213,8 +215,8 @@ def _add_search_args(p: argparse.ArgumentParser):
                    help="Domain exclusion list (default: built-in exclude_domains.txt)")
     p.add_argument("--no-exclude", action="store_true",
                    help="Disable domain exclusion filtering entirely")
-    p.add_argument("--save-pdfs", action="store_true",
-                   help="Save raw PDF files to disk alongside text extraction")
+    p.add_argument("--save-raw", action="store_true",
+                   help="Save raw documents (PDFs + HTML) to disk alongside text extraction")
     p.add_argument("--checkpoint", default=".scraper_checkpoint.json")
     p.add_argument("--resume", action="store_true")
     p.add_argument("--reset", action="store_true", help="Delete checkpoint before running (fresh start)")
@@ -249,8 +251,8 @@ def _add_crawl_args(p: argparse.ArgumentParser):
                    help="Domain exclusion list (default: built-in exclude_domains.txt)")
     p.add_argument("--no-exclude", action="store_true",
                    help="Disable domain exclusion filtering entirely")
-    p.add_argument("--save-pdfs", action="store_true",
-                   help="Save raw PDF files to disk alongside text extraction")
+    p.add_argument("--save-raw", action="store_true",
+                   help="Save raw documents (PDFs + HTML) to disk alongside text extraction")
     p.add_argument("--checkpoint", default=".crawl_checkpoint.json")
     p.add_argument("--resume", action="store_true")
     p.add_argument("--reset", action="store_true", help="Delete checkpoint before running (fresh start)")
@@ -694,6 +696,164 @@ def _run_patents(args):
     pipeline.run()
 
 
+def _add_supply_chain_args(p: argparse.ArgumentParser):
+    """Add arguments for the supply-chain subcommand."""
+    # CSV input
+    p.add_argument("--csv", required=True, help="CSV file with company names")
+    p.add_argument("--company-column", default="name",
+                   help="CSV column containing company names (default: name)")
+    p.add_argument("--ticker-column", default="ticker",
+                   help="CSV column containing ticker symbols (default: ticker)")
+    p.add_argument("--limit-companies", type=int, default=0,
+                   help="Process only first N companies (0 = all)")
+    p.add_argument("--skip-companies", type=int, default=0,
+                   help="Skip first N companies")
+
+    # Output
+    p.add_argument("--output-dir", default=None,
+                   help="Base dir for timestamped output folders (default: cwd)")
+    p.add_argument("--output", default=None,
+                   help="Explicit .parquet output path (overrides --output-dir)")
+
+    # Search
+    p.add_argument("--max-results", type=int, default=10)
+    p.add_argument("--search-type", choices=["text", "news"], default="text")
+    p.add_argument("--timelimit", choices=["d", "w", "m", "y"], default=None)
+    p.add_argument("--region", default="wt-wt")
+    p.add_argument("--backend", default="auto")
+    p.add_argument("--proxy", default=None)
+
+    # Tor
+    p.add_argument("--use-tor", action="store_true")
+    p.add_argument("--tor-socks-port", type=int, default=9150)
+    p.add_argument("--tor-control-port", type=int, default=9051)
+    p.add_argument("--tor-password", default="")
+    p.add_argument("--tor-renew-every", type=int, default=20)
+
+    # Search delays
+    p.add_argument("--search-delay-min", type=float, default=3.0)
+    p.add_argument("--search-delay-max", type=float, default=6.0)
+
+    # Fetch
+    p.add_argument("--concurrent", type=int, default=10)
+    p.add_argument("--per-domain", type=int, default=3)
+    p.add_argument("--timeout", type=int, default=20)
+    p.add_argument("--stealth", action="store_true")
+    p.add_argument("--no-robots", action="store_true")
+
+    # Crawl
+    p.add_argument("--crawl", action="store_true", help="Follow links from fetched pages (BFS)")
+    p.add_argument("--crawl-depth", type=int, default=2)
+    p.add_argument("--max-pages-per-domain", type=int, default=50)
+
+    # Extract
+    p.add_argument("--min-words", type=int, default=100)
+    p.add_argument("--target-language", default=None)
+    p.add_argument("--no-favor-precision", action="store_true")
+    p.add_argument("--date-from", default=None, help="YYYY-MM-DD")
+    p.add_argument("--date-to", default=None, help="YYYY-MM-DD")
+
+    # Store
+    p.add_argument("--jsonl", action="store_true")
+    p.add_argument("--markdown", action="store_true")
+    p.add_argument("--all-formats", action="store_true")
+    p.add_argument("--exclude-file", default=None)
+    p.add_argument("--no-exclude", action="store_true")
+    p.add_argument("--save-raw", action="store_true",
+                   help="Save raw documents (PDFs + HTML) to disk alongside text extraction")
+    p.add_argument("--checkpoint", default=".supply_chain_checkpoint.json")
+    p.add_argument("--resume", action="store_true")
+    p.add_argument("--reset", action="store_true", help="Delete checkpoint before running")
+    p.add_argument("--reset-queries", action="store_true",
+                   help="Clear completed queries from checkpoint but keep URL history")
+
+
+def _run_supply_chain(args):
+    """Run the supply-chain pipeline."""
+    from .pipeline import ScraperPipeline
+    from .supply_chain import generate_supply_chain_queries, write_queries_file
+
+    logger = logging.getLogger(__name__)
+
+    # Handle --reset
+    if args.reset:
+        cp = Path(args.checkpoint)
+        if cp.exists():
+            cp.unlink()
+            logger.info(f"Checkpoint reset: deleted {cp}")
+
+    # Generate queries
+    csv_path = Path(args.csv)
+    if not csv_path.exists():
+        logger.error(f"CSV file not found: {csv_path}")
+        sys.exit(1)
+
+    queries = generate_supply_chain_queries(
+        csv_path=csv_path,
+        company_col=args.company_column,
+        ticker_col=args.ticker_column,
+        limit=args.limit_companies,
+        skip=args.skip_companies,
+    )
+
+    if not queries:
+        logger.error("No queries generated from CSV")
+        sys.exit(1)
+
+    # Resolve output paths
+    out_dir, out_path, jsonl_path, markdown_path = _resolve_output_paths(
+        args, prefix="supply_chain"
+    )
+
+    # Write queries file into the output directory
+    queries_file = write_queries_file(queries, out_dir)
+
+    # Build config and run
+    config = ScraperConfig(
+        queries_file=queries_file,
+        max_results_per_query=args.max_results,
+        search_delay_min=args.search_delay_min,
+        search_delay_max=args.search_delay_max,
+        ddg_region=args.region,
+        ddg_timelimit=args.timelimit,
+        ddg_backend=args.backend,
+        search_type=args.search_type,
+        proxy=args.proxy,
+        use_tor=args.use_tor,
+        tor_socks_port=args.tor_socks_port,
+        tor_control_port=args.tor_control_port,
+        tor_password=args.tor_password,
+        tor_renew_every=args.tor_renew_every,
+        max_concurrent_total=args.concurrent,
+        max_concurrent_per_domain=args.per_domain,
+        fetch_timeout=args.timeout,
+        stealth=args.stealth,
+        respect_robots=not args.no_robots,
+        crawl=args.crawl,
+        crawl_depth=args.crawl_depth,
+        max_pages_per_domain=args.max_pages_per_domain,
+        min_word_count=args.min_words,
+        target_language=args.target_language,
+        favor_precision=not args.no_favor_precision,
+        date_from=args.date_from,
+        date_to=args.date_to,
+        output_dir=out_dir,
+        output_path=out_path,
+        jsonl_path=jsonl_path,
+        markdown_path=markdown_path,
+        exclude_file=_resolve_exclude_file(args),
+        save_raw=args.save_raw,
+        pdf_dir=out_dir / "pdfs" if args.save_raw else None,
+        html_dir=out_dir / "html" if args.save_raw else None,
+        checkpoint_file=Path(args.checkpoint),
+        resume=args.resume,
+        reset_queries=args.reset_queries,
+    )
+
+    pipeline = ScraperPipeline(config)
+    asyncio.run(pipeline.run())
+
+
 def main():
     p = argparse.ArgumentParser(
         description="Financial Web Scraper - search or deep-crawl modes",
@@ -724,11 +884,17 @@ def main():
     )
     _add_patent_args(patent_parser)
 
+    # "supply-chain" subcommand
+    sc_parser = subparsers.add_parser(
+        "supply-chain", help="Generate supply-chain queries from CSV and run search pipeline"
+    )
+    _add_supply_chain_args(sc_parser)
+
     # For backward compatibility: if no subcommand, treat all args as search
-    # We detect this by checking if any known search-only args are present
     argv = sys.argv[1:]
-    if argv and argv[0] not in ("search", "crawl", "transcripts", "patents", "-h", "--help"):
-        # No subcommand given — prepend "search" for backward compat
+    if argv and argv[0] not in (
+        "search", "crawl", "transcripts", "patents", "supply-chain", "-h", "--help"
+    ):
         argv = ["search"] + argv
 
     args = p.parse_args(argv)
@@ -745,6 +911,8 @@ def main():
         _run_transcripts(args)
     elif args.command == "patents":
         _run_patents(args)
+    elif args.command == "supply-chain":
+        _run_supply_chain(args)
     else:
         _run_search(args)
 

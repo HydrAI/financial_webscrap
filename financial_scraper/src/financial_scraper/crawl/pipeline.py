@@ -45,12 +45,15 @@ class CrawlPipeline:
             MarkdownWriter(self._config.markdown_path) if self._config.markdown_path else None
         )
         self._exclusions: set[str] = set()
-        # PDF saving
+        # Raw document saving (PDFs + HTML)
         self._pdf_dir: Path | None = None
-        if self._config.save_pdfs:
+        self._html_dir: Path | None = None
+        if self._config.save_raw:
             self._pdf_dir = self._config.pdf_dir or (self._config.output_dir / "pdfs")
             self._pdf_dir.mkdir(parents=True, exist_ok=True)
-            logger.info(f"PDF saving enabled: {self._pdf_dir}")
+            self._html_dir = self._config.html_dir or (self._config.output_dir / "html")
+            self._html_dir.mkdir(parents=True, exist_ok=True)
+            logger.info(f"Raw saving enabled: pdfs={self._pdf_dir}, html={self._html_dir}")
         # Stats
         self._method_counter: Counter = Counter()
         self._domain_counter: Counter = Counter()
@@ -178,6 +181,8 @@ class CrawlPipeline:
                         if not html:
                             total_failed += 1
                             continue
+                        if self._html_dir:
+                            self._save_html(html, url)
                         ex = self._extractor.extract(html, url)
 
                     if ex.extraction_method == "failed" or ex.word_count < self._config.min_word_count:
@@ -269,6 +274,22 @@ class CrawlPipeline:
             logger.debug(f"Saved PDF ({len(content_bytes)} bytes): {dest}")
         except Exception as e:
             logger.warning(f"Failed to save PDF {dest}: {e}")
+
+    def _save_html(self, html: str, url: str):
+        """Save raw HTML to disk with a URL-derived filename."""
+        parsed = urlparse(url)
+        name = unquote(parsed.path.rstrip("/").split("/")[-1]) or "index"
+        name = re.sub(r'[^\w\-.]', '_', name)
+        if not name.endswith(".html"):
+            name += ".html"
+        url_hash = hashlib.sha256(url.encode()).hexdigest()[:8]
+        filename = f"{url_hash}_{name}"
+        dest = self._html_dir / filename
+        try:
+            dest.write_text(html, encoding="utf-8")
+            logger.debug(f"Saved HTML ({len(html)} chars): {dest}")
+        except Exception as e:
+            logger.warning(f"Failed to save HTML {dest}: {e}")
 
     def _print_summary(self, total_records: int, total_seeds: int):
         logger.info("\n" + "=" * 60)

@@ -54,10 +54,10 @@ class DDGSearcher:
 
     def _get_ddgs_class(self):
         try:
-            from duckduckgo_search import DDGS
+            from ddgs import DDGS
             return DDGS
         except ImportError:
-            from ddgs import DDGS
+            from duckduckgo_search import DDGS
             return DDGS
 
     def _do_search_inner(self, query: str, max_results: int) -> list[dict]:
@@ -86,7 +86,10 @@ class DDGSearcher:
 
     def _do_search_with_retry(self, query: str, max_results: int) -> list[dict]:
         """Search with tenacity retry on ratelimit."""
-        from duckduckgo_search.exceptions import RatelimitException
+        try:
+            from ddgs.exceptions import RatelimitException
+        except ImportError:
+            from duckduckgo_search.exceptions import RatelimitException
 
         self._hit_ratelimit = False
         for attempt in range(3):
