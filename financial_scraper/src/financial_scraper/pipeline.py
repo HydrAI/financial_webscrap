@@ -1,10 +1,12 @@
 """Orchestrator: search -> fetch -> extract -> store."""
 
 import asyncio
+import hashlib
 import logging
+import re
 from datetime import datetime, timezone
 from pathlib import Path
-from urllib.parse import urlparse
+from urllib.parse import urlparse, unquote
 from collections import Counter
 
 from .config import ScraperConfig, apply_stealth
@@ -49,6 +51,12 @@ class ScraperPipeline:
         self._exclusions: set[str] = set()
         self._pages_extracted = 0
         self._domain_page_counts: Counter = Counter()
+        # PDF saving
+        self._pdf_dir: Path | None = None
+        if self._config.save_pdfs:
+            self._pdf_dir = self._config.pdf_dir or (self._config.output_dir / "pdfs")
+            self._pdf_dir.mkdir(parents=True, exist_ok=True)
+            logger.info(f"PDF saving enabled: {self._pdf_dir}")
         # Stats
         self._method_counter: Counter = Counter()
         self._domain_counter: Counter = Counter()
@@ -187,6 +195,8 @@ class ScraperPipeline:
                         or url.lower().endswith(".pdf")
                     )
                     if is_pdf:
+                        if self._pdf_dir:
+                            self._save_pdf(fr.content_bytes, url)
                         ex = self._pdf_extractor.extract(fr.content_bytes, url)
                     elif fr.html:
                         ex = self._extractor.extract(fr.html, url)
@@ -309,6 +319,23 @@ class ScraperPipeline:
 
         # 7. Summary
         self._print_summary(total_records, len(queries))
+
+    def _save_pdf(self, content_bytes: bytes, url: str):
+        """Save raw PDF bytes to disk with a URL-derived filename."""
+        parsed = urlparse(url)
+        name = unquote(parsed.path.split("/")[-1])
+        if not name or not name.endswith(".pdf"):
+            name = (name or "document") + ".pdf"
+        name = re.sub(r'[^\w\-.]', '_', name)
+        # Prefix with short hash to avoid collisions
+        url_hash = hashlib.sha256(url.encode()).hexdigest()[:8]
+        filename = f"{url_hash}_{name}"
+        dest = self._pdf_dir / filename
+        try:
+            dest.write_bytes(content_bytes)
+            logger.debug(f"Saved PDF ({len(content_bytes)} bytes): {dest}")
+        except Exception as e:
+            logger.warning(f"Failed to save PDF {dest}: {e}")
 
     def _print_summary(self, total_records: int, total_queries: int):
         logger.info("\n" + "=" * 60)

@@ -115,6 +115,8 @@ def build_config(args) -> ScraperConfig:
         jsonl_path=jsonl_path,
         markdown_path=markdown_path,
         exclude_file=_resolve_exclude_file(args),
+        save_pdfs=args.save_pdfs,
+        pdf_dir=out_dir / "pdfs" if args.save_pdfs else None,
         checkpoint_file=Path(args.checkpoint),
         resume=args.resume,
         reset_queries=args.reset_queries,
@@ -148,6 +150,8 @@ def build_crawl_config(args):
         checkpoint_file=Path(args.checkpoint),
         resume=args.resume,
         pdf_extractor=args.pdf_extractor,
+        save_pdfs=args.save_pdfs,
+        pdf_dir=out_dir / "pdfs" if args.save_pdfs else None,
         check_robots_txt=not args.no_robots,
         stealth=args.stealth,
     )
@@ -209,6 +213,8 @@ def _add_search_args(p: argparse.ArgumentParser):
                    help="Domain exclusion list (default: built-in exclude_domains.txt)")
     p.add_argument("--no-exclude", action="store_true",
                    help="Disable domain exclusion filtering entirely")
+    p.add_argument("--save-pdfs", action="store_true",
+                   help="Save raw PDF files to disk alongside text extraction")
     p.add_argument("--checkpoint", default=".scraper_checkpoint.json")
     p.add_argument("--resume", action="store_true")
     p.add_argument("--reset", action="store_true", help="Delete checkpoint before running (fresh start)")
@@ -243,6 +249,8 @@ def _add_crawl_args(p: argparse.ArgumentParser):
                    help="Domain exclusion list (default: built-in exclude_domains.txt)")
     p.add_argument("--no-exclude", action="store_true",
                    help="Disable domain exclusion filtering entirely")
+    p.add_argument("--save-pdfs", action="store_true",
+                   help="Save raw PDF files to disk alongside text extraction")
     p.add_argument("--checkpoint", default=".crawl_checkpoint.json")
     p.add_argument("--resume", action="store_true")
     p.add_argument("--reset", action="store_true", help="Delete checkpoint before running (fresh start)")

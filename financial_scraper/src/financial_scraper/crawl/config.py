@@ -35,6 +35,8 @@ class CrawlConfig:
 
     # PDF
     pdf_extractor: str = "auto"  # "auto", "docling", or "pdfplumber"
+    save_pdfs: bool = False
+    pdf_dir: Path | None = None
 
     # Behavior
     check_robots_txt: bool = True
