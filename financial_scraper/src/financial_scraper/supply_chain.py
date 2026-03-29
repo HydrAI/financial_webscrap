@@ -13,12 +13,20 @@ _SUFFIX_RE = re.compile(
     re.IGNORECASE,
 )
 
-QUERY_TEMPLATES = [
-    '{company} suppliers supply chain',
-    '{company} customers clients revenue',
-    '{company} raw materials components procurement',
-    '{company} supply chain risk annual report',
-    '{company} manufacturing operations facilities',
+# Ticker-based queries — hit financial databases (CSIMarket, SEC, SeekingAlpha)
+_TICKER_TEMPLATES = [
+    '{ticker} supply chain',
+    '{ticker} suppliers',
+    '{ticker} customers',
+    '{ticker} 10-K',
+]
+
+# Company-name queries — broader web coverage
+_NAME_TEMPLATES = [
+    '{company} supply chain',
+    '{company} suppliers',
+    '{company} customers revenue',
+    '{company} annual report',
 ]
 
 
@@ -39,6 +47,8 @@ def generate_supply_chain_queries(
     """Read CSV and generate supply-chain queries.
 
     Returns list of (company_name, ticker, query) tuples.
+    Uses ticker-based queries for financial DB hits and
+    company-name queries for broader web coverage.
     """
     companies: list[tuple[str, str]] = []
     with open(csv_path, "r", encoding="utf-8") as f:
@@ -65,11 +75,18 @@ def generate_supply_chain_queries(
     results: list[tuple[str, str, str]] = []
     for name, ticker in companies:
         clean = _clean_company_name(name)
-        for template in QUERY_TEMPLATES:
+        # Ticker queries (skip if no ticker)
+        if ticker:
+            for template in _TICKER_TEMPLATES:
+                query = template.format(ticker=ticker)
+                results.append((name, ticker, query))
+        # Name queries
+        for template in _NAME_TEMPLATES:
             query = template.format(company=clean)
             results.append((name, ticker, query))
 
-    logger.info(f"Generated {len(results)} queries ({len(QUERY_TEMPLATES)} per company)")
+    per_company = len(_TICKER_TEMPLATES) + len(_NAME_TEMPLATES)
+    logger.info(f"Generated {len(results)} queries (up to {per_company} per company)")
     return results
 
 

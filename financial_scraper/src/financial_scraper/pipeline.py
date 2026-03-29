@@ -350,6 +350,10 @@ class ScraperPipeline:
         if not name.endswith(".html"):
             name += ".html"
         url_hash = hashlib.sha256(url.encode()).hexdigest()[:8]
+        # Truncate name to avoid Windows 260-char path limit
+        max_name_len = 200 - len(str(self._html_dir)) - len(url_hash) - 2
+        if len(name) > max_name_len:
+            name = name[:max_name_len] + ".html"
         filename = f"{url_hash}_{name}"
         dest = self._html_dir / filename
         try:
