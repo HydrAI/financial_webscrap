@@ -890,10 +890,25 @@ def main():
     )
     _add_supply_chain_args(sc_parser)
 
+    # "sec-filings" subcommand
+    sec_parser = subparsers.add_parser(
+        "sec-filings", help="Download 10-K/20-F filings from SEC EDGAR"
+    )
+    sec_parser.add_argument("--csv", required=True, help="CSV file with company tickers")
+    sec_parser.add_argument("--company-column", default="name")
+    sec_parser.add_argument("--ticker-column", default="ticker")
+    sec_parser.add_argument("--limit-companies", type=int, default=0)
+    sec_parser.add_argument("--skip-companies", type=int, default=0)
+    sec_parser.add_argument("--max-filings", type=int, default=0,
+                           help="Max filings per company (0 = all available)")
+    sec_parser.add_argument("--output-dir", default="sec_filings_output")
+    sec_parser.add_argument("--resume", action="store_true")
+
     # For backward compatibility: if no subcommand, treat all args as search
     argv = sys.argv[1:]
     if argv and argv[0] not in (
-        "search", "crawl", "transcripts", "patents", "supply-chain", "-h", "--help"
+        "search", "crawl", "transcripts", "patents", "supply-chain",
+        "sec-filings", "-h", "--help",
     ):
         argv = ["search"] + argv
 
@@ -913,6 +928,18 @@ def main():
         _run_patents(args)
     elif args.command == "supply-chain":
         _run_supply_chain(args)
+    elif args.command == "sec-filings":
+        from .sec_filings import download_sec_filings
+        download_sec_filings(
+            csv_path=Path(args.csv),
+            output_dir=Path(args.output_dir),
+            company_col=args.company_column,
+            ticker_col=args.ticker_column,
+            limit=args.limit_companies,
+            skip=args.skip_companies,
+            max_filings_per_company=args.max_filings,
+            resume=args.resume,
+        )
     else:
         _run_search(args)
 
