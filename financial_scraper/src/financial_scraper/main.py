@@ -3,6 +3,7 @@
 import argparse
 import asyncio
 import logging
+import os
 import sys
 import time
 from datetime import datetime
@@ -904,11 +905,43 @@ def main():
     sec_parser.add_argument("--output-dir", default="sec_filings_output")
     sec_parser.add_argument("--resume", action="store_true")
 
+    # "uk-filings" subcommand
+    uk_parser = subparsers.add_parser(
+        "uk-filings", help="Download annual accounts from UK Companies House"
+    )
+    uk_parser.add_argument("--csv", required=True, help="CSV file with company names")
+    uk_parser.add_argument("--ch-api-key", default=None,
+                          help="Companies House API key (or set COMPANIES_HOUSE_API_KEY env var)")
+    uk_parser.add_argument("--company-column", default="name")
+    uk_parser.add_argument("--company-number-column", default="company_number")
+    uk_parser.add_argument("--limit-companies", type=int, default=0)
+    uk_parser.add_argument("--skip-companies", type=int, default=0)
+    uk_parser.add_argument("--max-filings", type=int, default=0)
+    uk_parser.add_argument("--output-dir", default="uk_filings_output")
+    uk_parser.add_argument("--resume", action="store_true")
+
+    # "edinet-filings" subcommand
+    edinet_parser = subparsers.add_parser(
+        "edinet-filings", help="Download annual securities reports from EDINET (Japan)"
+    )
+    edinet_parser.add_argument("--csv", required=True, help="CSV file with company names/tickers")
+    edinet_parser.add_argument("--edinet-api-key", default=None,
+                              help="EDINET API key (or set EDINET_API_KEY env var)")
+    edinet_parser.add_argument("--company-column", default="name")
+    edinet_parser.add_argument("--ticker-column", default="ticker")
+    edinet_parser.add_argument("--scan-days", type=int, default=730,
+                              help="Number of days to scan backwards (default: 730)")
+    edinet_parser.add_argument("--limit-companies", type=int, default=0)
+    edinet_parser.add_argument("--skip-companies", type=int, default=0)
+    edinet_parser.add_argument("--max-filings", type=int, default=0)
+    edinet_parser.add_argument("--output-dir", default="edinet_filings_output")
+    edinet_parser.add_argument("--resume", action="store_true")
+
     # For backward compatibility: if no subcommand, treat all args as search
     argv = sys.argv[1:]
     if argv and argv[0] not in (
         "search", "crawl", "transcripts", "patents", "supply-chain",
-        "sec-filings", "-h", "--help",
+        "sec-filings", "uk-filings", "edinet-filings", "-h", "--help",
     ):
         argv = ["search"] + argv
 
@@ -935,6 +968,41 @@ def main():
             output_dir=Path(args.output_dir),
             company_col=args.company_column,
             ticker_col=args.ticker_column,
+            limit=args.limit_companies,
+            skip=args.skip_companies,
+            max_filings_per_company=args.max_filings,
+            resume=args.resume,
+        )
+    elif args.command == "uk-filings":
+        from .uk_filings import download_uk_filings
+        api_key = args.ch_api_key or os.environ.get("COMPANIES_HOUSE_API_KEY", "")
+        if not api_key:
+            logger.error("Companies House API key required: --ch-api-key or COMPANIES_HOUSE_API_KEY env var")
+            sys.exit(1)
+        download_uk_filings(
+            csv_path=Path(args.csv),
+            output_dir=Path(args.output_dir),
+            api_key=api_key,
+            company_col=args.company_column,
+            company_number_col=args.company_number_column,
+            limit=args.limit_companies,
+            skip=args.skip_companies,
+            max_filings_per_company=args.max_filings,
+            resume=args.resume,
+        )
+    elif args.command == "edinet-filings":
+        from .edinet_filings import download_edinet_filings
+        api_key = args.edinet_api_key or os.environ.get("EDINET_API_KEY", "")
+        if not api_key:
+            logger.error("EDINET API key required: --edinet-api-key or EDINET_API_KEY env var")
+            sys.exit(1)
+        download_edinet_filings(
+            csv_path=Path(args.csv),
+            output_dir=Path(args.output_dir),
+            api_key=api_key,
+            company_col=args.company_column,
+            ticker_col=args.ticker_column,
+            scan_days=args.scan_days,
             limit=args.limit_companies,
             skip=args.skip_companies,
             max_filings_per_company=args.max_filings,
