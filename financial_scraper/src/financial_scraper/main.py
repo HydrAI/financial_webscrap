@@ -898,6 +898,12 @@ def main():
     sec_parser.add_argument("--csv", required=True, help="CSV file with company tickers")
     sec_parser.add_argument("--company-column", default="name")
     sec_parser.add_argument("--ticker-column", default="ticker")
+    sec_parser.add_argument("--isin-column", default="",
+                           help="CSV column for ISIN; resolves non-US tickers to US ADR via OpenFIGI")
+    sec_parser.add_argument("--country-column", default="",
+                           help="CSV column for country code (to filter rows)")
+    sec_parser.add_argument("--country-filter", default="",
+                           help="Country code to filter (e.g. GB)")
     sec_parser.add_argument("--limit-companies", type=int, default=0)
     sec_parser.add_argument("--skip-companies", type=int, default=0)
     sec_parser.add_argument("--max-filings", type=int, default=0,
@@ -972,6 +978,9 @@ def main():
             output_dir=Path(args.output_dir),
             company_col=args.company_column,
             ticker_col=args.ticker_column,
+            isin_col=args.isin_column,
+            country_col=args.country_column,
+            country_filter=args.country_filter,
             limit=args.limit_companies,
             skip=args.skip_companies,
             max_filings_per_company=args.max_filings,
