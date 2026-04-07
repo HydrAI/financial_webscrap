@@ -83,6 +83,8 @@ def _get_filing_history(company_number: str, api_key: str) -> list[dict]:
                 "type": item.get("type", ""),
                 "description": item.get("description", ""),
                 "metadata_url": doc_links["document_metadata"],
+                "paper_filed": item.get("paper_filed", False),
+                "pages": item.get("pages", 0),
             })
 
         start_index += len(items)
@@ -94,26 +96,19 @@ def _get_filing_history(company_number: str, api_key: str) -> list[dict]:
 
 def _download_document(metadata_url: str, api_key: str) -> bytes | None:
     """Download a filing document (PDF) from Companies House."""
-    # Get document metadata
     url = metadata_url
     if not url.startswith("http"):
         url = f"{DOC_API}{url}"
 
-    r = requests.get(url, auth=_get_auth(api_key), timeout=15)
-    time.sleep(CH_RATE_LIMIT)
-    if r.status_code != 200:
-        return None
-
-    # Download PDF
     r = requests.get(
         url + "/content",
         auth=_get_auth(api_key),
         headers={"Accept": "application/pdf"},
-        timeout=30,
+        timeout=60,
         allow_redirects=True,
     )
     time.sleep(CH_RATE_LIMIT)
-    if r.status_code == 200:
+    if r.status_code == 200 and len(r.content) > 100:
         return r.content
     return None
 
@@ -124,6 +119,8 @@ def download_uk_filings(
     api_key: str,
     company_col: str = "name",
     company_number_col: str = "company_number",
+    country_col: str = "",
+    country_filter: str = "",
     limit: int = 0,
     skip: int = 0,
     max_filings_per_company: int = 0,
@@ -137,6 +134,11 @@ def download_uk_filings(
         fieldnames = reader.fieldnames or []
         has_number = company_number_col in fieldnames
         for row in reader:
+            # Country filter
+            if country_col and country_filter:
+                rc = row.get(country_col, "").strip().upper()
+                if rc != country_filter.upper():
+                    continue
             name = row.get(company_col, "").strip()
             number = row.get(company_number_col, "").strip() if has_number else ""
             if name:
@@ -150,8 +152,8 @@ def download_uk_filings(
 
     # Setup output
     output_dir.mkdir(parents=True, exist_ok=True)
-    pdf_dir = output_dir / "pdfs"
-    pdf_dir.mkdir(exist_ok=True)
+    raw_dir = output_dir / "raw"
+    raw_dir.mkdir(exist_ok=True)
     parquet_path = output_dir / "uk_filings.parquet"
 
     # Resume
@@ -205,32 +207,39 @@ def download_uk_filings(
             # Save PDF
             fname = f"{number}_{filing['date']}_{filing['type']}.pdf"
             fname = re.sub(r"[^\w\-.]", "_", fname)
-            (pdf_dir / fname).write_bytes(pdf_bytes)
+            (raw_dir / fname).write_bytes(pdf_bytes)
 
-            # Extract text from PDF
+            # Extract text (skip for paper-filed image PDFs — needs OCR)
             text = ""
-            try:
-                import pdfplumber
-                import io
-                with pdfplumber.open(io.BytesIO(pdf_bytes)) as pdf:
-                    pages = [p.extract_text() or "" for p in pdf.pages]
-                    text = "\n".join(pages)
-            except Exception as e:
-                logger.warning(f"  PDF extraction failed: {e}")
+            paper = filing.get("paper_filed", False)
+            if not paper:
+                try:
+                    import pdfplumber
+                    import io
+                    with pdfplumber.open(io.BytesIO(pdf_bytes)) as pdf:
+                        pages = [p.extract_text() or "" for p in pdf.pages]
+                        text = "\n".join(pages)
+                except Exception as e:
+                    logger.warning(f"  PDF extraction failed: {e}")
 
             words = len(text.split()) if text else 0
+            size_mb = len(pdf_bytes) / 1_048_576
             records.append({
                 "company": name,
                 "company_number": number,
                 "filing_type": filing["type"],
                 "filing_date": filing["date"],
                 "description": filing["description"],
+                "pages": filing.get("pages", 0),
+                "paper_filed": paper,
+                "pdf_size_mb": round(size_mb, 1),
                 "full_text": text,
                 "words": words,
             })
             company_count += 1
             total_new += 1
-            logger.info(f"  {filing['type']} {filing['date']}: {words:,} words")
+            note = " (paper-filed, needs OCR)" if paper and words == 0 else ""
+            logger.info(f"  {filing['type']} {filing['date']}: {size_mb:.1f}MB, {words:,} words{note}")
 
         logger.info(f"  Downloaded {company_count} filings for {name}")
 

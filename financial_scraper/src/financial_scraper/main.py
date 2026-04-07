@@ -914,6 +914,10 @@ def main():
                           help="Companies House API key (or set COMPANIES_HOUSE_API_KEY env var)")
     uk_parser.add_argument("--company-column", default="name")
     uk_parser.add_argument("--company-number-column", default="company_number")
+    uk_parser.add_argument("--country-column", default="",
+                          help="CSV column for country code (to filter rows)")
+    uk_parser.add_argument("--country-filter", default="",
+                          help="Country code to filter (e.g. GB)")
     uk_parser.add_argument("--limit-companies", type=int, default=0)
     uk_parser.add_argument("--skip-companies", type=int, default=0)
     uk_parser.add_argument("--max-filings", type=int, default=0)
@@ -985,6 +989,8 @@ def main():
             api_key=api_key,
             company_col=args.company_column,
             company_number_col=args.company_number_column,
+            country_col=args.country_column,
+            country_filter=args.country_filter,
             limit=args.limit_companies,
             skip=args.skip_companies,
             max_filings_per_company=args.max_filings,
