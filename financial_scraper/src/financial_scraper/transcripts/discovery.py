@@ -42,15 +42,17 @@ USER_AGENT = (
 )
 
 # URL slug pattern: {company}-{ticker}-q{N}-{year}-earnings-call-transcript
+# Ticker part allows hyphens for dot-tickers (BRK.A -> brk-a in URL slugs)
 _SLUG_RE = re.compile(
     r"/earnings/call-transcripts/"
     r"(?P<pub_year>\d{4})/(?P<pub_month>\d{2})/(?P<pub_day>\d{2})/"
-    r"(?P<company>.+?)-(?P<ticker>[a-z]+)-"
+    r"(?P<company>.+?)-(?P<ticker>[a-z]+(?:-[a-z])?)-"
     r"(?:q(?P<quarter>\d)-)?"
     r"(?P<fiscal_year>\d{4})-earnings"
 )
 
 _SITEMAP_NS = {"s": "http://www.sitemaps.org/schemas/sitemap/0.9"}
+_SITEMAP_NS_GOOGLE = {"s": "http://www.google.com/schemas/sitemap/0.84"}
 
 
 @dataclass(frozen=True, slots=True)
@@ -63,6 +65,27 @@ class TranscriptInfo:
     pub_date: str  # YYYY-MM-DD publication date
 
 
+def _normalize_ticker(slug: str) -> str:
+    """Convert URL slug ticker back to standard form.
+
+    Handles dot-class tickers: 'brk-a' -> 'BRK.A', 'mog-a' -> 'MOG.A'.
+    Plain tickers: 'aapl' -> 'AAPL'.
+    """
+    upper = slug.upper()
+    # Single-letter suffix after hyphen = class share (BRK-A -> BRK.A)
+    if re.fullmatch(r"[A-Z]+-[A-Z]", upper):
+        return upper.replace("-", ".")
+    return upper
+
+
+def _ticker_to_slug(ticker: str) -> str:
+    """Convert standard ticker to URL slug form for matching.
+
+    'BRK.A' -> 'brk-a', 'AAPL' -> 'aapl'.
+    """
+    return ticker.lower().replace(".", "-")
+
+
 def _parse_transcript_url(url: str) -> TranscriptInfo | None:
     """Extract metadata from a Motley Fool transcript URL."""
     m = _SLUG_RE.search(url.lower())
@@ -73,7 +96,7 @@ def _parse_transcript_url(url: str) -> TranscriptInfo | None:
         return None
     return TranscriptInfo(
         url=url,
-        ticker=m.group("ticker").upper(),
+        ticker=_normalize_ticker(m.group("ticker")),
         quarter=f"Q{quarter_num}",
         year=int(m.group("fiscal_year")),
         pub_date=f"{m.group('pub_year')}-{m.group('pub_month')}-{m.group('pub_day')}",
@@ -92,10 +115,14 @@ def _parse_sitemap_xml(content: str | bytes) -> list[str]:
     except etree.XMLSyntaxError:
         return []
 
-    # Try with standard sitemap namespace first, then without namespace
+    # Try multiple sitemap namespace variants
     locs = root.findall(".//s:loc", _SITEMAP_NS)
     if not locs:
+        locs = root.findall(".//s:loc", _SITEMAP_NS_GOOGLE)
+    if not locs:
         locs = root.findall(".//{http://www.sitemaps.org/schemas/sitemap/0.9}loc")
+    if not locs:
+        locs = root.findall(".//{http://www.google.com/schemas/sitemap/0.84}loc")
     if not locs:
         locs = root.findall(".//loc")
 
@@ -161,7 +188,7 @@ def discover_transcripts(
         year = datetime.now().year
 
     ticker_upper = ticker.upper()
-    ticker_lower = ticker.lower()
+    ticker_slug = _ticker_to_slug(ticker)
 
     # Scan sitemaps for the prior year, target year, and next year.
     # Companies with fiscal years offset from the calendar year (e.g. NVIDIA,
@@ -187,10 +214,10 @@ def discover_transcripts(
 
     for y, m in months_to_scan:
         all_urls = _fetch_sitemap_urls(y, m)
-        # Fast filter: only transcript URLs containing the ticker
+        # Fast filter: only transcript URLs containing the ticker slug
         transcript_urls = [
             u for u in all_urls
-            if TRANSCRIPT_PATH in u and f"-{ticker_lower}-" in u.lower()
+            if TRANSCRIPT_PATH in u and f"-{ticker_slug}-" in u.lower()
         ]
 
         for url in transcript_urls:
@@ -255,7 +282,7 @@ def discover_transcripts_range(
             logger.warning(f"Failed to load discovery cache ({e}), re-scanning sitemaps")
     now = datetime.now()
     ticker_upper_set = {t.upper() for t in tickers}
-    ticker_lower_set = {t.lower() for t in tickers}
+    ticker_slug_set = {_ticker_to_slug(t) for t in tickers}
 
     # Months to scan: one year before from_year through one year after to_year,
     # capped at the current calendar month (no future sitemaps exist).
@@ -282,8 +309,8 @@ def discover_transcripts_range(
             if TRANSCRIPT_PATH not in url:
                 continue
             url_lower = url.lower()
-            # Fast pre-filter: skip URLs that don't contain any known ticker
-            if not any(f"-{t}-" in url_lower for t in ticker_lower_set):
+            # Fast pre-filter: skip URLs that don't contain any known ticker slug
+            if not any(f"-{t}-" in url_lower for t in ticker_slug_set):
                 continue
             info = _parse_transcript_url(url)
             if info is None:

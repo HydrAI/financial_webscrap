@@ -6,6 +6,8 @@ import pytest
 from financial_scraper.transcripts.config import TranscriptConfig
 from financial_scraper.transcripts.discovery import (
     _parse_transcript_url,
+    _normalize_ticker,
+    _ticker_to_slug,
     _fetch_sitemap_urls,
     discover_transcripts,
     TranscriptInfo,
@@ -60,6 +62,28 @@ class TestParseTranscriptURL:
         url = "https://www.fool.com/investing/2025/01/01/some-article/"
         info = _parse_transcript_url(url)
         assert info is None
+
+    def test_dot_ticker_brk_a(self):
+        url = (
+            "https://www.fool.com/earnings/call-transcripts/"
+            "2025/02/22/berkshire-hathaway-brk-a-q4-2024-earnings-call-transcript/"
+        )
+        info = _parse_transcript_url(url)
+        assert info is not None
+        assert info.ticker == "BRK.A"
+        assert info.quarter == "Q4"
+        assert info.year == 2024
+
+    def test_dot_ticker_mog_a(self):
+        url = (
+            "https://www.fool.com/earnings/call-transcripts/"
+            "2025/01/28/moog-mog-a-q1-2025-earnings-call-transcript/"
+        )
+        info = _parse_transcript_url(url)
+        assert info is not None
+        assert info.ticker == "MOG.A"
+        assert info.quarter == "Q1"
+        assert info.year == 2025
 
 
 class TestTranscriptConfig:
