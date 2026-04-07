@@ -930,6 +930,28 @@ def main():
     uk_parser.add_argument("--output-dir", default="uk_filings_output")
     uk_parser.add_argument("--resume", action="store_true")
 
+    # "fca-nsm" subcommand
+    nsm_parser = subparsers.add_parser(
+        "fca-nsm", help="Download UK annual reports from FCA National Storage Mechanism"
+    )
+    nsm_parser.add_argument("--csv", required=True, help="CSV file with company names")
+    nsm_parser.add_argument("--company-column", default="company_name")
+    nsm_parser.add_argument("--lei-column", default="",
+                           help="CSV column for LEI (exact match, preferred over name)")
+    nsm_parser.add_argument("--country-column", default="")
+    nsm_parser.add_argument("--country-filter", default="")
+    nsm_parser.add_argument("--headline", default="Annual Financial Report",
+                           help="Headline filter (fuzzy match). Empty = all disclosures.")
+    nsm_parser.add_argument("--from-date", default="",
+                           help="Publication date from (DD/MM/YYYY)")
+    nsm_parser.add_argument("--to-date", default="",
+                           help="Publication date to (DD/MM/YYYY)")
+    nsm_parser.add_argument("--limit-companies", type=int, default=0)
+    nsm_parser.add_argument("--skip-companies", type=int, default=0)
+    nsm_parser.add_argument("--max-filings", type=int, default=0)
+    nsm_parser.add_argument("--output-dir", default="fca_nsm_output")
+    nsm_parser.add_argument("--resume", action="store_true")
+
     # "edinet-filings" subcommand
     edinet_parser = subparsers.add_parser(
         "edinet-filings", help="Download annual securities reports from EDINET (Japan)"
@@ -951,7 +973,7 @@ def main():
     argv = sys.argv[1:]
     if argv and argv[0] not in (
         "search", "crawl", "transcripts", "patents", "supply-chain",
-        "sec-filings", "uk-filings", "edinet-filings", "-h", "--help",
+        "sec-filings", "uk-filings", "fca-nsm", "edinet-filings", "-h", "--help",
     ):
         argv = ["search"] + argv
 
@@ -1000,6 +1022,23 @@ def main():
             company_number_col=args.company_number_column,
             country_col=args.country_column,
             country_filter=args.country_filter,
+            limit=args.limit_companies,
+            skip=args.skip_companies,
+            max_filings_per_company=args.max_filings,
+            resume=args.resume,
+        )
+    elif args.command == "fca-nsm":
+        from .fca_nsm import download_fca_nsm
+        download_fca_nsm(
+            csv_path=Path(args.csv),
+            output_dir=Path(args.output_dir),
+            company_col=args.company_column,
+            lei_col=args.lei_column,
+            country_col=args.country_column,
+            country_filter=args.country_filter,
+            headline=args.headline,
+            from_date=args.from_date,
+            to_date=args.to_date,
             limit=args.limit_companies,
             skip=args.skip_companies,
             max_filings_per_company=args.max_filings,
