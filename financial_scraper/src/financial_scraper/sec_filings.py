@@ -185,25 +185,32 @@ def download_sec_filings(
     # Load ticker -> CIK
     ticker_cik = _load_ticker_cik_map()
 
-    # Optional: resolve ISINs -> US tickers via OpenFIGI for rows whose
-    # local ticker isn't in the SEC map.
+    # When isin_col is set, ISIN is authoritative: local tickers (e.g. LSE)
+    # frequently collide with unrelated US tickers (LAND=Gladstone Land,
+    # CNA=CNA Financial, NG=NovaGold, RR=Richtech Robotics) and blindly
+    # trusting them downloads the wrong company's filings. OpenFIGI joins
+    # on ISIN, which is globally unique.
     isin_ticker: dict[str, str] = {}
     if isin_col:
-        unresolved = [
-            isin for (_, t, isin) in companies
-            if isin and t.upper() not in ticker_cik
-        ]
-        if unresolved:
-            isin_ticker = _resolve_isins_to_us_tickers(sorted(set(unresolved)))
+        all_isins = sorted({isin for (_, _, isin) in companies if isin})
+        if all_isins:
+            isin_ticker = _resolve_isins_to_us_tickers(all_isins)
 
     records = list(existing_records)
     total_new = 0
 
     for idx, (name, ticker, isin) in enumerate(companies):
-        # Resolve to a SEC-known ticker. Prefer the local ticker if it
-        # already maps; otherwise fall back to the ISIN-derived US ticker.
-        sec_ticker = ticker.upper() if ticker.upper() in ticker_cik else isin_ticker.get(isin, "")
-        key = sec_ticker or ticker.upper() or isin
+        # Resolve to a SEC-known ticker.
+        # - If isin_col is set and this row has an ISIN, ISIN wins (only
+        #   ISIN-derived tickers that also exist in SEC's map are kept).
+        # - Otherwise fall back to the raw ticker column.
+        if isin_col and isin:
+            sec_ticker = isin_ticker.get(isin, "")
+            if sec_ticker and sec_ticker not in ticker_cik:
+                sec_ticker = ""
+        else:
+            sec_ticker = ticker.upper() if ticker.upper() in ticker_cik else ""
+        key = sec_ticker or isin or ticker.upper()
 
         if key in done_tickers:
             logger.info(f"[{idx+1}/{len(companies)}] Skipping {key} (already done)")
