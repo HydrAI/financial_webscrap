@@ -1031,6 +1031,31 @@ Extended transcript coverage from a single Motley Fool source to 5 sources with 
 
 9. **Final output**: 27,798 rows across 1,425 tickers (94.3% of US10002 universe), spanning 2006-2026.
 
+### Phase 11: Patents, Supply Chain & Regulatory Filings (2026-03 to 2026-04)
+
+New subcommands for targeted data acquisition, each reading a company-list CSV and writing a single parquet:
+
+1. **`patents`** — Discover and fetch patent data by assignee, topic keywords, or explicit IDs. Two sources: Google Patents (default, free) and BigQuery (scale). Supports CPC/IPC/WIPO classification filters, batch targets file, and optional description-text inclusion. Data acquisition only — LLM-based signal extraction happens in the downstream KG project.
+
+2. **`supply-chain`** — Generates 5 supply-chain search queries per company from a CSV and reuses `ScraperPipeline`. Useful for building broad supplier/customer corpora.
+
+3. **`--save-raw`** — New flag on `search`, `crawl`, and `supply-chain` that persists raw PDFs and HTML alongside the parquet (`<output>/pdfs/`, `<output>/html/`). Replaces the older `--save-pdfs`.
+
+4. **`sec-filings`** — Downloads 10-K / 20-F from SEC EDGAR by ticker. `--isin-column` resolves non-US tickers to their US ADR via OpenFIGI and is authoritative when set (prevents wrong-company matches on generic tickers like BP/BT).
+
+5. **`uk-filings`** — Downloads statutory accounts from UK Companies House. Rescoped to CH-native filings only (scanned-image PDFs are common for pre-iXBRL years); for text-extractable listed-issuer annual reports, use `fca-nsm`.
+
+6. **`fca-nsm`** — Downloads UK annual reports from the FCA National Storage Mechanism (DTR 6.4 repository). Queries the Elasticsearch endpoint the NSM SPA uses (`api.data.fca.org.uk/search`) with a post-hoc fuzzy name filter to defend against loose ES matching. Handles three payload types:
+   - **PDF** → `pdfplumber`
+   - **ESEF iXBRL zip** → largest xhtml extracted, parsed with `lxml.etree` (recover + huge_tree), handles 100+ MB single-file reports that defeat `trafilatura` / `lxml.html`
+   - **HTML (RNS)** → `trafilatura`
+
+   Full GB run (300 companies from `kg_liquid_companies_prod_fid.csv`, `--max-filings 5`): 213/300 companies matched, 840 reports downloaded, 40.8M words in 108 minutes. 111 companies with ≥1 substantive report (≥10k words). Combined with `sec-filings --isin-column` for dual-listed issuers, this covers the ~274 UK-listed companies not reachable via SEC.
+
+7. **`edinet-filings`** — Downloads annual securities reports from EDINET (Japan). Scans backward `--scan-days` (default 730) for matching companies by name/ticker.
+
+All regulatory-filing subcommands share the same conventions: `--csv`, `--company-column`, `--country-column`/`--country-filter`, `--limit-companies`, `--skip-companies`, `--max-filings`, `--output-dir`, `--resume`, per-run checkpointing, and incremental parquet writes.
+
 ### Errors Fixed During Development
 
 1. **pyproject.toml**: `setuptools.backends._legacy:_Backend` doesn't exist -> changed to `setuptools.build_meta`

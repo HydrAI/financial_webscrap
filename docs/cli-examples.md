@@ -288,6 +288,131 @@ financial-scraper transcripts --tickers AAPL MSFT GOOG AMZN META --year 2025 --r
 
 ---
 
+## Regulatory Filings
+
+Direct downloaders for official annual-report repositories. Each subcommand reads a company-list CSV, queries the authoritative regulator endpoint, downloads filings, and writes extracted text to a single parquet. All support `--limit-companies`, `--skip-companies`, `--max-filings`, `--output-dir`, and `--resume`.
+
+### SEC EDGAR (`sec-filings`) — US 10-K / 20-F
+
+```bash
+financial-scraper sec-filings --csv kg_liquid_companies.csv \
+  --ticker-column ticker --company-column company_name \
+  --max-filings 5 --output-dir sec_filings_us
+```
+
+Non-US tickers can be resolved to their US ADR via OpenFIGI using ISIN (authoritative when `--isin-column` is set):
+
+```bash
+financial-scraper sec-filings --csv kg_liquid_companies.csv \
+  --isin-column isin --company-column company_name \
+  --country-column country_code --country-filter GB \
+  --max-filings 5 --output-dir sec_filings_uk_adrs
+```
+
+### UK Companies House (`uk-filings`) — statutory accounts
+
+```bash
+export COMPANIES_HOUSE_API_KEY=...   # or pass --ch-api-key
+financial-scraper uk-filings --csv kg_liquid_companies.csv \
+  --company-column company_name --company-number-column company_number \
+  --country-column country_code --country-filter GB \
+  --max-filings 3 --output-dir uk_filings
+```
+
+> Scope: CH hosts *statutory* accounts (often scanned PDFs for legacy filings). For text-extractable DTR 6.4 annual reports from UK-listed issuers, prefer `fca-nsm` below.
+
+### FCA National Storage Mechanism (`fca-nsm`) — UK listed-issuer annual reports
+
+```bash
+financial-scraper fca-nsm --csv kg_liquid_companies.csv \
+  --company-column company_name \
+  --country-column country_code --country-filter GB \
+  --max-filings 5 --output-dir fca_nsm_uk --resume
+```
+
+Handles three payload types automatically:
+- **PDF** → `pdfplumber`
+- **ESEF iXBRL zip** → unzipped, parsed with `lxml.etree` (recover + huge_tree) — handles 100+ MB single-file reports
+- **HTML (RNS)** → `trafilatura`
+
+Optional filters: `--lei-column` (exact LEI match, preferred over name), `--headline "Annual Financial Report"` (default; set empty for all disclosures), `--from-date`/`--to-date` (`DD/MM/YYYY`).
+
+### EDINET (`edinet-filings`) — Japan annual securities reports
+
+```bash
+export EDINET_API_KEY=...   # or pass --edinet-api-key
+financial-scraper edinet-filings --csv kg_liquid_companies.csv \
+  --company-column company_name --ticker-column ticker \
+  --scan-days 730 --max-filings 3 --output-dir edinet_jp
+```
+
+---
+
+## Patents (`patents` subcommand)
+
+Discover and fetch patent data by assignee, topic keywords, or explicit IDs. Data acquisition only — no downstream signal extraction (that lives in the separate KG project).
+
+### By assignee (discover via Google Patents)
+
+```bash
+financial-scraper patents --assignee "Droneshield LLC" \
+  --company "DroneShield" --max-discovery 50 --output-dir patent_data
+```
+
+### By topic keywords
+
+```bash
+financial-scraper patents --search-queries "drone acoustic detection patent" \
+  --company "topic-drones" --max-discovery 100 --output-dir patent_data
+```
+
+### CPC classification filter
+
+```bash
+financial-scraper patents --assignee "Raytheon Technologies" \
+  --cpc-filter G01S H04 --max-discovery 200 --output-dir patent_data
+```
+
+### Batch mode (multiple companies / themes)
+
+```bash
+financial-scraper patents --targets-file config/patent_targets.json --output-dir patent_data
+```
+
+### BigQuery source (large-scale)
+
+```bash
+financial-scraper patents --source bigquery \
+  --bq-csv kg_liquid_companies.csv --bq-company-column company_name \
+  --bq-country US --bq-dry-run   # estimate cost first
+```
+
+---
+
+## Supply-Chain Queries (`supply-chain` subcommand)
+
+Generates 5 supply-chain search queries per company from a CSV and runs them through the standard search pipeline.
+
+```bash
+financial-scraper supply-chain --csv kg_liquid_companies.csv \
+  --company-column company_name --ticker-column ticker \
+  --limit-companies 100 --output-dir supply_chain_top100 --resume
+```
+
+---
+
+## Saving Raw Downloads (`--save-raw`)
+
+Available on `search`, `crawl`, and `supply-chain`. Persists the raw PDFs and HTML alongside the parquet for downstream inspection or re-extraction:
+
+```bash
+financial-scraper --queries-file config/commodities_50.txt \
+  --save-raw --output-dir ./runs
+# → runs/<ts>/pdfs/  and  runs/<ts>/html/
+```
+
+---
+
 ## Resume & Recovery
 
 ### Resume an interrupted run
