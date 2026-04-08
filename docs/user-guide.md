@@ -16,9 +16,12 @@ A step-by-step guide to installing, configuring, and running financial-scraper,f
 8. [Using Tor](#using-tor)
 9. [URL Deep-Crawl (crawl subcommand)](#url-deep-crawl-crawl-subcommand)
 10. [Earnings Transcripts (transcripts subcommand)](#earnings-transcripts-transcripts-subcommand)
-11. [Python API Reference](#python-api-reference)
-12. [Troubleshooting & FAQ](#troubleshooting--faq)
-13. [Platform Notes](#platform-notes)
+11. [Regulatory Filings (sec-filings, uk-filings, fca-nsm, edinet-filings)](#regulatory-filings)
+12. [Patents (patents subcommand)](#patents-patents-subcommand)
+13. [Supply-Chain Queries (supply-chain subcommand)](#supply-chain-queries-supply-chain-subcommand)
+14. [Python API Reference](#python-api-reference)
+15. [Troubleshooting & FAQ](#troubleshooting--faq)
+16. [Platform Notes](#platform-notes)
 
 ---
 
@@ -848,6 +851,245 @@ config = TranscriptConfig(
 pipeline = TranscriptPipeline(config)
 pipeline.run()  # Synchronous — no asyncio.run() needed
 ```
+
+---
+
+## Regulatory Filings
+
+Five subcommands pull annual reports directly from the authoritative regulator/registry endpoints instead of discovering them via search. Each reads a company-list CSV, queries the source API, downloads the filings, extracts text, and writes a single parquet plus a `raw/` directory of source files.
+
+### Which one to use
+
+| Subcommand | Source | Scope | Text quality |
+|------------|--------|-------|--------------|
+| `sec-filings` | SEC EDGAR | US 10-K / 20-F (incl. non-US ADR issuers via `--isin-column`) | Excellent — publisher HTML |
+| `uk-filings` | UK Companies House | CH statutory accounts | Poor-to-medium — many legacy PDFs are scanned images |
+| `fca-nsm` | FCA National Storage Mechanism | UK listed-issuer DTR 6.4 annual reports | Excellent — iXBRL / publisher PDFs |
+| `edinet-filings` | EDINET (Japan) | Japanese annual securities reports | Excellent |
+| `patents` | Google Patents / BigQuery | Patent metadata + claims | N/A |
+
+**For UK companies**: prefer `fca-nsm` (text-extractable, iXBRL ESEF packages) over `uk-filings` (CH scans). Use `sec-filings --isin-column` first for the ~26/300 dual-listed issuers with US ADRs, then `fca-nsm` for the remainder.
+
+### Shared CLI conventions
+
+All five subcommands share these flags:
+
+| Flag | Purpose |
+|------|---------|
+| `--csv FILE` | Company list (required) |
+| `--company-column NAME` | CSV column containing company names |
+| `--country-column NAME` | CSV column containing country codes (optional filter) |
+| `--country-filter CODE` | Process only rows matching this country code (e.g. `GB`) |
+| `--limit-companies N` | Process only the first N rows after filtering |
+| `--skip-companies N` | Skip the first N rows (for sharding) |
+| `--max-filings N` | Cap filings per company (`0` = all, recommended: 3-5) |
+| `--output-dir DIR` | Output directory (parquet + `raw/` subdir + checkpoint) |
+| `--resume` | Resume from the per-run checkpoint file |
+
+Incremental writes + checkpointing means you can safely interrupt (`Ctrl+C`) and resume any run.
+
+### SEC EDGAR (`sec-filings`)
+
+Downloads 10-K (US domestic) and 20-F (foreign private issuer) filings from SEC EDGAR by ticker. Resolves ticker → CIK → filings index → primary document.
+
+```bash
+# Direct US tickers
+python -m financial_scraper sec-filings \
+  --csv kg_liquid_companies.csv \
+  --ticker-column ticker --company-column company_name \
+  --max-filings 5 --output-dir sec_filings_us
+```
+
+For non-US companies listed on US exchanges via ADR, pass `--isin-column` and the scraper will resolve ISINs to their US ticker via OpenFIGI. When `--isin-column` is set, the ISIN is **authoritative** — this prevents wrong-company matches on generic tickers (e.g. `BP`, `BT`) by ignoring the CSV's ticker column in favor of the OpenFIGI-resolved one.
+
+```bash
+python -m financial_scraper sec-filings \
+  --csv kg_liquid_companies.csv \
+  --isin-column isin --company-column company_name \
+  --country-column country_code --country-filter GB \
+  --max-filings 5 --output-dir sec_filings_uk_adrs
+```
+
+**Coverage limitation**: on a 300-GB-company universe, ADR resolution via SEC only reaches ~26 genuinely dual-listed issuers. Use `fca-nsm` for the other ~274.
+
+### UK Companies House (`uk-filings`)
+
+Downloads statutory accounts directly from Companies House via the CH REST API. Requires a free CH API key.
+
+```bash
+export COMPANIES_HOUSE_API_KEY=...   # or pass --ch-api-key
+python -m financial_scraper uk-filings \
+  --csv kg_liquid_companies.csv \
+  --company-column company_name --company-number-column company_number \
+  --country-column country_code --country-filter GB \
+  --max-filings 3 --output-dir uk_filings
+```
+
+**Scope caveat**: CH hosts the *statutory* filing, which for pre-iXBRL years is often a scanned-image PDF unsuitable for text extraction. For listed-issuer annual reports (LSE Main Market, AIM), the regulated DTR 6.4 filing in the FCA NSM is text-extractable and should be preferred — see `fca-nsm` below.
+
+### FCA National Storage Mechanism (`fca-nsm`)
+
+Downloads UK listed-issuer annual reports from the FCA NSM, the official DTR 6.4 repository. Queries the Elasticsearch endpoint the NSM portal SPA uses (`api.data.fca.org.uk/search`).
+
+```bash
+python -m financial_scraper fca-nsm \
+  --csv kg_liquid_companies.csv \
+  --company-column company_name \
+  --country-column country_code --country-filter GB \
+  --max-filings 5 --output-dir fca_nsm_uk --resume
+```
+
+**Three payload types**, auto-detected by magic bytes:
+
+| Kind | Extraction path | Typical size | Typical words |
+|------|-----------------|--------------|---------------|
+| `pdf` | `pdfplumber` | 2-12 MB | 80k-200k |
+| `zip` (ESEF iXBRL) | Unzipped, largest `.xhtml` parsed with `lxml.etree` (recover + huge_tree) | 30-120 MB | 150k-400k |
+| `html` (RNS) | `trafilatura` | <100 KB | 100-10k (often short announcement stub) |
+
+The ESEF iXBRL path is the gold standard — publisher-produced, machine-readable single-file reports. Some of them are 100+ MB single-file XHTML that defeat `trafilatura` and `lxml.html`; the `lxml.etree` path with `huge_tree=True` and `recover=True` handles them.
+
+**Name matching**: the FCA's Elasticsearch `company` criterion is deliberately loose (e.g. a BP-only query can match UBS ETFs with "BP" in their name). A post-hoc fuzzy name filter normalises corporate suffixes and requires a distinctive-token match plus ≥50% token overlap before accepting a hit.
+
+**Optional filters:**
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--lei-column NAME` | — | CSV column for LEI — exact LEI match, preferred over name fuzzy-match |
+| `--headline STR` | `"Annual Financial Report"` | Headline substring filter; pass `""` for all disclosures |
+| `--from-date DD/MM/YYYY` | — | Publication date lower bound |
+| `--to-date DD/MM/YYYY` | — | Publication date upper bound |
+
+**Full-GB run benchmark** (300 companies from `kg_liquid_companies_prod_fid.csv`, `--max-filings 5`, Apr 2026):
+
+| Metric | Value |
+|---|---|
+| Runtime | 108 minutes |
+| Companies matched | 213 / 300 (71%) |
+| Companies with ≥1 substantive report (≥10k words) | 111 / 300 (37%) |
+| Reports downloaded | 840 |
+| Total extracted words | 40.8M |
+| Mean words by kind | html: 3.7k, pdf: 128k, **zip: 244k** |
+
+The 29% no-hit rate is dominated by AIM-listed / sub-threshold issuers not subject to DTR 6.4, plus occasional name-normalization misses.
+
+### EDINET (`edinet-filings`)
+
+Downloads annual securities reports (有価証券報告書) from EDINET, Japan's equivalent of EDGAR. Requires a free EDINET API key.
+
+```bash
+export EDINET_API_KEY=...   # or pass --edinet-api-key
+python -m financial_scraper edinet-filings \
+  --csv kg_liquid_companies.csv \
+  --company-column company_name --ticker-column ticker \
+  --scan-days 730 --max-filings 3 --output-dir edinet_jp
+```
+
+`--scan-days` controls how far back the daily-disclosure index is scanned (default 730 = ~2 years) to find filings matching the target companies.
+
+### Output format
+
+All four regulatory-filing subcommands write a single parquet with a consistent schema:
+
+| Column | Description |
+|--------|-------------|
+| `csv_company` | Company name from the input CSV |
+| `csv_lei` / `csv_ticker` | Identifier from the input CSV |
+| `hit_company` / `hit_lei` | Identifier as matched on the source |
+| `headline` / `type` | Filing headline and type code |
+| `document_date` / `publication_date` | Filing dates |
+| `source` | Source API (`sec-filings`, `uk-filings`, `fca-nsm`, `edinet-filings`) |
+| `download_url` | Original download URL |
+| `file_kind` | `pdf` / `zip` / `html` |
+| `file_size_mb` | Raw file size |
+| `full_text` | Extracted text |
+| `words` | Word count |
+
+Raw downloaded files are kept in `<output-dir>/raw/` for re-extraction or auditing.
+
+---
+
+## Patents (`patents` subcommand)
+
+Discover and fetch patent data by assignee, topic keywords, or explicit patent IDs. Two data sources:
+
+- **Google Patents** (default, free): web-scraping the public Google Patents front-end
+- **BigQuery** (`--source bigquery`): the Google Public Data `patents-public-data` dataset — much faster for bulk assignee lookups but requires a GCP project and incurs query costs
+
+**Scope note**: this module is data-acquisition only. Pre-canned regex supply-chain signal extraction was intentionally removed — LLM-based extraction happens in a separate downstream KG project.
+
+### Discovery modes
+
+**By assignee** (most common):
+
+```bash
+python -m financial_scraper patents \
+  --assignee "Droneshield LLC" --company "DroneShield" \
+  --max-discovery 50 --output-dir patent_data
+```
+
+**By topic keywords**:
+
+```bash
+python -m financial_scraper patents \
+  --search-queries "drone acoustic detection patent" "counter-UAS acoustic" \
+  --company "topic-drones" --max-discovery 100 --output-dir patent_data
+```
+
+**By explicit IDs** (when you already have a list):
+
+```bash
+python -m financial_scraper patents \
+  --ids-file my_patent_ids.txt --company "MyCorp" --output-dir patent_data
+```
+
+**Batch mode** (multiple companies or themes from a JSON config):
+
+```bash
+python -m financial_scraper patents \
+  --targets-file config/patent_targets.json --output-dir patent_data
+```
+
+### Classification filters
+
+Restrict to patents matching CPC, IPC, or WIPO technology-category codes:
+
+```bash
+# CPC prefixes (e.g. radar + wireless comms)
+python -m financial_scraper patents --assignee "Raytheon Technologies" \
+  --cpc-filter G01S H04 --max-discovery 200 --output-dir patent_data
+
+# List available WIPO categories
+python -m financial_scraper patents --list-wipo-categories
+```
+
+### BigQuery source (large-scale)
+
+For pulling patents across hundreds of assignees, BigQuery is much faster. Always dry-run first to estimate cost:
+
+```bash
+python -m financial_scraper patents --source bigquery \
+  --bq-csv kg_liquid_companies.csv --bq-company-column company_name \
+  --bq-country US --bq-dry-run
+```
+
+Remove `--bq-dry-run` to execute. Add `--bq-include-description` only when you need full claim text (much larger output).
+
+---
+
+## Supply-Chain Queries (`supply-chain` subcommand)
+
+Generates 5 supply-chain-focused search queries per company from a CSV (e.g. "`<company>` suppliers", "`<company>` customers", "`<company>` manufacturing partners"), then runs them through the standard `ScraperPipeline`. Useful for bulk-building supplier/customer corpora for downstream analysis.
+
+```bash
+python -m financial_scraper supply-chain \
+  --csv kg_liquid_companies.csv \
+  --company-column company_name --ticker-column ticker \
+  --limit-companies 100 --max-results 10 \
+  --output-dir supply_chain_top100 --resume
+```
+
+Inherits all search/fetch/Tor/throttle flags from the main `search` subcommand, including `--save-raw` to persist source PDFs/HTML alongside the parquet.
 
 ---
 
