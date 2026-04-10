@@ -27,21 +27,32 @@ SKIP_URL_PATTERNS = [
     # Auth / account
     "*/login*", "*/signin*", "*/register*", "*/account*",
     # Corporate boilerplate
-    "*/contact*", "*/career*", "*/jobs*", "*/about-us*",
+    "*/contact*", "*/career*", "*/jobs*",
     # Legal
     "*privacy*", "*cookie*", "*/terms*", "*/legal*", "*disclaimer*",
     # Navigation dead-ends
     "*/search", "*/search/*", "*faq*",
     # Non-content
     "*/video/*", "*javascript:*", "*mailto:*",
+    # More career variants
+    "*/vacancies*", "*/applicant*", "*/talent*",
+    # Asset galleries
+    "*/media-library*", "*/image-gallery*",
 ]
 
 # Positive-signal keywords used by the URL scorer to prioritise financial
 # content during BFS expansion.
 FINANCIAL_SIGNALS = [
+    # General financial
     "earnings", "revenue", "quarterly", "annual", "report",
     "results", "financial", "sec", "filings", "filing",
     "news", "press", "article", "release",
+    # Commodity-specific
+    "commodity", "crude", "lng", "refinery", "terminal",
+    "shipping", "grain", "crop", "copper", "nickel",
+    "aluminium", "iron ore", "lithium", "cobalt",
+    "production", "reserves", "throughput", "sustainability",
+    "supply chain", "logistics", "market outlook", "trading",
 ]
 
 

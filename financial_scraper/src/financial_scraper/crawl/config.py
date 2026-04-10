@@ -42,6 +42,7 @@ class CrawlConfig:
     # Behavior
     check_robots_txt: bool = True
     stealth: bool = False
+    simple_fetch: bool = False  # Skip BFS deep crawl, just fetch each seed URL directly
 
 
 def apply_stealth(config: CrawlConfig) -> CrawlConfig:

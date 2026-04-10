@@ -12,6 +12,8 @@ from urllib.parse import urlparse, unquote
 import aiohttp
 from crawl4ai import AsyncWebCrawler
 
+from crawl4ai.async_configs import CrawlerRunConfig
+
 from .config import CrawlConfig, apply_stealth
 from .strategy import build_browser_config, build_crawl_strategy, build_crawler_config
 from ..extract.html import HTMLExtractor
@@ -104,15 +106,27 @@ class CrawlPipeline:
                 logger.info(f"\n[{si+1}/{len(seed_urls)}] Crawling: {seed_url}")
 
                 # Build strategy + config for this seed
-                strategy = build_crawl_strategy(
-                    max_depth=self._config.max_depth,
-                    max_pages=self._config.max_pages,
-                )
-                crawler_config = build_crawler_config(
-                    strategy=strategy,
-                    check_robots_txt=self._config.check_robots_txt,
-                    semaphore_count=self._config.semaphore_count,
-                )
+                if self._config.simple_fetch:
+                    # Simple mode: just fetch the page, no BFS expansion
+                    crawler_config = CrawlerRunConfig(
+                        exclude_all_images=True,
+                        exclude_external_images=True,
+                        exclude_social_media_links=True,
+                        semaphore_count=self._config.semaphore_count,
+                        check_robots_txt=self._config.check_robots_txt,
+                        mean_delay=4.0,
+                        max_range=2.0,
+                    )
+                else:
+                    strategy = build_crawl_strategy(
+                        max_depth=self._config.max_depth,
+                        max_pages=self._config.max_pages,
+                    )
+                    crawler_config = build_crawler_config(
+                        strategy=strategy,
+                        check_robots_txt=self._config.check_robots_txt,
+                        semaphore_count=self._config.semaphore_count,
+                    )
 
                 # Run crawl4ai
                 try:

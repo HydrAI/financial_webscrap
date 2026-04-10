@@ -157,6 +157,7 @@ def build_crawl_config(args):
         html_dir=out_dir / "html" if args.save_raw else None,
         check_robots_txt=not args.no_robots,
         stealth=args.stealth,
+        simple_fetch=getattr(args, "simple_fetch", False),
     )
 
 
@@ -265,6 +266,8 @@ def _add_crawl_args(p: argparse.ArgumentParser):
     # Behavior
     p.add_argument("--no-robots", action="store_true")
     p.add_argument("--stealth", action="store_true")
+    p.add_argument("--simple-fetch", action="store_true",
+                   help="Skip BFS deep crawl — just fetch each seed URL directly (ideal for sitemap-sourced URLs)")
 
 
 def _run_search(args):

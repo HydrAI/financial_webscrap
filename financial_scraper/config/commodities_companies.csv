@@ -1,0 +1,61 @@
+company,domain,sector
+Vitol,vitol.com,trading
+Trafigura,trafigura.com,trading
+Mercuria,mercuria.com,trading
+Gunvor,gunvorgroup.com,trading
+Koch Industries,kochind.com,trading
+Louis Dreyfus,ldc.com,trading
+COFCO International,cofcointernational.com,trading
+Olam,olamgroup.com,trading
+Wilmar International,wilmar-international.com,trading
+Castleton Commodities,cci.com,trading
+Freepoint Commodities,freepointcommodities.com,trading
+Hartree Partners,hartreepartners.com,trading
+Engelhart,ectp.com,trading
+Noble Resources,thisisnoble.com,trading
+Cargill,cargill.com,ag
+Bunge,bunge.com,ag
+ADM,adm.com,ag
+Ingredion,ingredion.com,ag
+Corteva,corteva.com,ag
+Syngenta,syngenta.com,ag
+Mosaic,mosaicco.com,ag
+Nutrien,nutrien.com,ag
+CF Industries,cfindustries.com,ag
+K+S,kpluss.com,ag
+Glencore,glencore.com,mining
+BHP,bhp.com,mining
+Rio Tinto,riotinto.com,mining
+Vale,vale.com,mining
+Anglo American,angloamerican.com,mining
+Freeport-McMoRan,fcx.com,mining
+Newmont,newmont.com,mining
+Barrick Gold,barrick.com,mining
+Southern Copper,southerncoppercorp.com,mining
+First Quantum Minerals,first-quantum.com,mining
+Antofagasta,antofagasta.co.uk,mining
+Norsk Hydro,hydro.com,mining
+Alcoa,alcoa.com,mining
+Vedanta,vedantalimited.com,mining
+Teck Resources,teck.com,mining
+South32,south32.net,mining
+Saudi Aramco,aramco.com,oilgas
+Shell,shell.com,oilgas
+TotalEnergies,totalenergies.com,oilgas
+BP,bp.com,oilgas
+ExxonMobil,corporate.exxonmobil.com,oilgas
+Chevron,chevron.com,oilgas
+ConocoPhillips,conocophillips.com,oilgas
+Equinor,equinor.com,oilgas
+Eni,eni.com,oilgas
+Repsol,repsol.com,oilgas
+Maersk,maersk.com,shipping
+MSC,msc.com,shipping
+CMA CGM,cmacgm-group.com,shipping
+Hapag-Lloyd,hapag-lloyd.com,shipping
+Stena Bulk,stenabulk.com,shipping
+Torm,torm.com,shipping
+CME Group,cmegroup.com,exchanges
+ICE,ice.com,exchanges
+LME,lme.com,exchanges
+S&P Global Commodity Insights,spglobal.com/commodityinsights,exchanges
