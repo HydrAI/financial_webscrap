@@ -49,6 +49,7 @@ class ScraperPipeline:
             MarkdownWriter(self._config.markdown_path) if self._config.markdown_path else None
         )
         self._exclusions: set[str] = set()
+        self.stats: dict[str, int] = {}  # populated after run()
         self._pages_extracted = 0
         self._domain_page_counts: Counter = Counter()
         # Raw document saving (PDFs + HTML)
@@ -363,6 +364,9 @@ class ScraperPipeline:
             logger.warning(f"Failed to save HTML {dest}: {e}")
 
     def _print_summary(self, total_records: int, total_queries: int):
+        # Expose stats for programmatic access (e.g. deep search multi-pass)
+        self.stats = dict(self._checkpoint.stats)
+
         logger.info("\n" + "=" * 60)
         logger.info("SCRAPER SUMMARY")
         logger.info("=" * 60)

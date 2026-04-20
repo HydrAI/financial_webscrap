@@ -163,8 +163,15 @@ def build_crawl_config(args):
 
 def _add_search_args(p: argparse.ArgumentParser):
     """Add arguments for the search subcommand."""
-    # Required
-    p.add_argument("--queries-file", required=True, help="File with queries (one per line)")
+    # Query source (one of --queries-file or --topic required)
+    p.add_argument("--queries-file", default=None, help="File with queries (one per line)")
+    p.add_argument("--topic", default=None,
+                   help="Topic for auto-generated queries (e.g. 'copper futures'). Use with --year-range.")
+    p.add_argument("--year-range", default=None,
+                   help="Year range for --topic (e.g. 2000-2025)")
+    p.add_argument("--deep", action="store_true",
+                   help="Deep research mode: enables crawl depth-2, site-targeted queries, "
+                        "multi-region (gb-en), and news pass. Requires --topic.")
     p.add_argument("--output", default=None, help="Explicit .parquet output path (overrides --output-dir)")
     p.add_argument("--output-dir", default=None, help="Base dir for timestamped output folders (default: cwd)")
 
@@ -271,22 +278,232 @@ def _add_crawl_args(p: argparse.ArgumentParser):
 
 
 def _run_search(args):
-    """Run the search pipeline."""
-    # Lazy import: pipeline imports duckduckgo which sets
-    # WindowsSelectorEventLoopPolicy (needed by aiohttp/curl-cffi,
-    # but incompatible with Playwright used by crawl subcommand).
+    """Run the search pipeline.
+
+    Supports two modes:
+      1. --queries-file: standard mode, run queries from file
+      2. --topic + --year-range: auto-expand topic into queries, optionally
+         with --deep for multi-pass (crawl + region + news)
+    """
     from .pipeline import ScraperPipeline
+
+    logger = logging.getLogger(__name__)
 
     # Handle --reset
     if args.reset:
         cp = Path(args.checkpoint)
         if cp.exists():
             cp.unlink()
-            logging.getLogger(__name__).info(f"Checkpoint reset: deleted {cp}")
+            logger.info("Checkpoint reset: deleted %s", cp)
+
+    # Topic-based query expansion
+    if args.topic:
+        from .query_expand import expand_queries, write_queries_file
+
+        # Parse year range
+        if args.year_range:
+            parts = args.year_range.split("-")
+            year_start, year_end = int(parts[0]), int(parts[-1])
+        else:
+            year_start, year_end = 2000, datetime.now().year
+
+        queries = expand_queries(
+            args.topic, year_start, year_end,
+            include_sites=True,
+            include_jargon=True,
+        )
+
+        # Write to temp queries file
+        topic_slug = args.topic.lower().replace(" ", "_")[:30]
+        queries_path = Path(args.output_dir or ".") / f".{topic_slug}_queries.txt"
+        write_queries_file(queries, queries_path)
+        args.queries_file = str(queries_path)
+
+        if args.deep:
+            _run_deep_search(args, topic_slug, queries, year_start, year_end)
+            return
+
+    if not args.queries_file:
+        logger.error("Either --queries-file or --topic is required")
+        return
 
     config = build_config(args)
     pipeline = ScraperPipeline(config)
     asyncio.run(pipeline.run())
+
+
+def _run_deep_search(args, topic_slug, queries, year_start, year_end):
+    """Multi-pass deep research with automatic jargon discovery.
+
+    Runs 4 sequential passes, all writing to the same output parquet:
+      Pass 1: Standard text search (core + site-targeted + known jargon)
+      Pass 2: Auto-jargon expansion (mine terms from pass 1, generate new queries)
+      Pass 3: Crawl mode depth-2 (all queries, follows links for massive expansion)
+      Pass 4: News search (core queries only, for recent coverage)
+    """
+    from .pipeline import ScraperPipeline
+    from .query_expand import (
+        extract_jargon, expand_from_jargon, discover_top_domains,
+        expand_queries as _expand, write_queries_file as _write_qf,
+    )
+
+    logger = logging.getLogger(__name__)
+
+    # Resolve output paths once — all passes append to the same parquet
+    out_dir, out_path, jsonl_path, markdown_path = _resolve_output_paths(
+        args, prefix=topic_slug
+    )
+
+    logger.info("=" * 60)
+    logger.info("DEEP SEARCH: %s (%d-%d)", args.topic, year_start, year_end)
+    logger.info("Queries: %d | Output: %s", len(queries), out_path)
+    logger.info("=" * 60)
+
+    total_pages = 0
+    all_queries_seen = set(queries)
+
+    # --- Pass 1: Standard text search ---
+    logger.info("")
+    logger.info(">>> Pass 1/4: Text search (%d queries)", len(queries))
+    args_p1 = _clone_args(args)
+    config_p1 = build_config(args_p1)
+    config_p1 = _replace_config_field(config_p1, "output_path", out_path)
+    config_p1 = _replace_config_field(config_p1, "output_dir", out_dir)
+    config_p1 = _replace_config_field(
+        config_p1, "checkpoint_file", Path(f".deep_{topic_slug}_p1.json")
+    )
+    pipeline = ScraperPipeline(config_p1)
+    asyncio.run(pipeline.run())
+    total_pages += pipeline.stats.get("total_pages", 0)
+
+    # --- Auto-jargon: mine terms from pass 1 results ---
+    jargon_queries = []
+    if out_path.exists():
+        try:
+            import pandas as pd
+            df = pd.read_parquet(out_path)
+            logger.info("")
+            logger.info(">>> Auto-jargon: mining terms from %d documents...", len(df))
+
+            texts = df["full_text"].dropna().tolist()
+            jargon_terms = extract_jargon(texts, args.topic, max_terms=20, min_freq=3)
+
+            if jargon_terms:
+                jargon_queries = expand_from_jargon(
+                    args.topic, jargon_terms, year_start, year_end,
+                    max_queries_per_term=5,
+                    existing_queries=all_queries_seen,
+                )
+                all_queries_seen.update(jargon_queries)
+
+            # Also discover productive new domains for site-targeting
+            sources = list(zip(
+                df["full_text"].fillna("").tolist(),
+                df["source"].fillna("").tolist(),
+            ))
+            new_domains = discover_top_domains(sources, min_docs=3)
+            for domain in new_domains[:10]:
+                q = f"site:{domain} {args.topic}"
+                if q not in all_queries_seen:
+                    jargon_queries.append(q)
+                    all_queries_seen.add(q)
+
+        except Exception as exc:
+            logger.warning("Auto-jargon extraction failed: %s", exc)
+
+    # --- Pass 2: Jargon-expanded search ---
+    if jargon_queries:
+        jargon_path = out_dir / f".{topic_slug}_jargon_queries.txt"
+        _write_qf(jargon_queries, jargon_path)
+
+        logger.info("")
+        logger.info(">>> Pass 2/4: Auto-jargon search (%d new queries)", len(jargon_queries))
+        args_p2 = _clone_args(args)
+        args_p2.queries_file = str(jargon_path)
+        config_p2 = build_config(args_p2)
+        config_p2 = _replace_config_field(config_p2, "output_path", out_path)
+        config_p2 = _replace_config_field(config_p2, "output_dir", out_dir)
+        config_p2 = _replace_config_field(
+            config_p2, "checkpoint_file", Path(f".deep_{topic_slug}_p2.json")
+        )
+        pipeline = ScraperPipeline(config_p2)
+        asyncio.run(pipeline.run())
+        total_pages += pipeline.stats.get("total_pages", 0)
+    else:
+        logger.info("")
+        logger.info(">>> Pass 2/4: Skipped (no new jargon terms discovered)")
+
+    # --- Pass 3: Crawl mode (depth 2) — all queries combined ---
+    # Merge original + jargon queries for maximum crawl coverage
+    all_queries_list = queries + jargon_queries
+    crawl_path = out_dir / f".{topic_slug}_crawl_queries.txt"
+    _write_qf(all_queries_list, crawl_path)
+
+    logger.info("")
+    logger.info(">>> Pass 3/4: Crawl mode depth-2 (%d queries)", len(all_queries_list))
+    args_p3 = _clone_args(args)
+    args_p3.queries_file = str(crawl_path)
+    args_p3.crawl = True
+    args_p3.crawl_depth = 2
+    args_p3.max_pages_per_domain = 20
+    args_p3.min_words = 50
+    config_p3 = build_config(args_p3)
+    config_p3 = _replace_config_field(config_p3, "output_path", out_path)
+    config_p3 = _replace_config_field(config_p3, "output_dir", out_dir)
+    config_p3 = _replace_config_field(
+        config_p3, "checkpoint_file", Path(f".deep_{topic_slug}_p3.json")
+    )
+    pipeline = ScraperPipeline(config_p3)
+    asyncio.run(pipeline.run())
+    total_pages += pipeline.stats.get("total_pages", 0)
+
+    # --- Pass 4: News search ---
+    news_queries = _expand(
+        args.topic, year_start, year_end,
+        include_sites=False, include_jargon=False,
+    )
+    news_path = out_dir / f".{topic_slug}_news_queries.txt"
+    _write_qf(news_queries, news_path)
+
+    logger.info("")
+    logger.info(">>> Pass 4/4: News search (%d queries)", len(news_queries))
+    args_p4 = _clone_args(args)
+    args_p4.queries_file = str(news_path)
+    args_p4.search_type = "news"
+    config_p4 = build_config(args_p4)
+    config_p4 = _replace_config_field(config_p4, "output_path", out_path)
+    config_p4 = _replace_config_field(config_p4, "output_dir", out_dir)
+    config_p4 = _replace_config_field(
+        config_p4, "checkpoint_file", Path(f".deep_{topic_slug}_p4.json")
+    )
+    pipeline = ScraperPipeline(config_p4)
+    asyncio.run(pipeline.run())
+    total_pages += pipeline.stats.get("total_pages", 0)
+
+    # --- Summary ---
+    total_queries = len(queries) + len(jargon_queries) + len(news_queries)
+    logger.info("")
+    logger.info("=" * 60)
+    logger.info("DEEP SEARCH COMPLETE")
+    logger.info("  Topic: %s (%d-%d)", args.topic, year_start, year_end)
+    logger.info("  Total queries: %d (base: %d, auto-jargon: %d, news: %d)",
+                total_queries, len(queries), len(jargon_queries), len(news_queries))
+    logger.info("  Total pages across all passes: %d", total_pages)
+    logger.info("  Output: %s", out_path)
+    logger.info("=" * 60)
+
+
+def _clone_args(args):
+    """Create a shallow copy of parsed args."""
+    import copy
+    return copy.copy(args)
+
+
+def _replace_config_field(config, field_name, value):
+    """Replace a field on a frozen dataclass by rebuilding it."""
+    fields = {f.name: getattr(config, f.name) for f in config.__dataclass_fields__.values()}
+    fields[field_name] = value
+    return type(config)(**fields)
 
 
 def _run_crawl(args):
@@ -858,6 +1075,82 @@ def _run_supply_chain(args):
     asyncio.run(pipeline.run())
 
 
+def _add_futures_args(p: argparse.ArgumentParser):
+    """Add CLI arguments for the futures subcommand."""
+    p.add_argument("--exchange", default="cme,ice,lme",
+                   help="Comma-separated exchanges to scrape (default: cme,ice,lme)")
+    p.add_argument("--category", default="",
+                   help="Filter by category: energy,metals,agriculture,softs,livestock,financials,emissions")
+    p.add_argument("--delay", type=float, default=3.0,
+                   help="Base seconds between requests (default: 3.0)")
+    p.add_argument("--timeout", type=int, default=30,
+                   help="HTTP timeout in seconds (default: 30)")
+    p.add_argument("--output-dir", default=".",
+                   help="Output directory (default: current dir)")
+    p.add_argument("--jsonl", action="store_true",
+                   help="Also write consolidated JSONL")
+    p.add_argument("--checkpoint", default=".futures_checkpoint.json",
+                   help="Checkpoint file path")
+    p.add_argument("--resume", action="store_true",
+                   help="Resume from checkpoint")
+    p.add_argument("--reset", action="store_true",
+                   help="Delete checkpoint before starting")
+    p.add_argument("--local-html", default="",
+                   help="Parse pre-crawled HTML files from this directory instead of live fetching")
+    p.add_argument("--list-exchanges", action="store_true",
+                   help="Print supported exchanges and exit")
+
+
+def build_futures_config(args) -> "FuturesConfig":
+    """Build FuturesConfig from parsed args."""
+    from .futures.config import FuturesConfig
+
+    out_dir = Path(args.output_dir)
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    exchanges = tuple(e.strip().lower() for e in args.exchange.split(",") if e.strip())
+    categories = tuple(c.strip().lower() for c in args.category.split(",") if c.strip()) if args.category else ()
+
+    ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+    output_path = out_dir / f"futures_{ts}.parquet"
+    jsonl_path = out_dir / f"futures_{ts}.jsonl" if args.jsonl else None
+
+    local_html_dir = Path(args.local_html) if args.local_html else None
+
+    return FuturesConfig(
+        exchanges=exchanges,
+        categories=categories,
+        delay=args.delay,
+        max_delay=60.0,
+        timeout=args.timeout,
+        output_dir=out_dir,
+        output_path=output_path,
+        jsonl_path=jsonl_path,
+        local_html_dir=local_html_dir,
+        checkpoint_file=Path(args.checkpoint),
+        resume=args.resume,
+    )
+
+
+def _run_futures(args):
+    """Run the futures contract pipeline."""
+    from .futures.pipeline import FuturesPipeline, SUPPORTED_EXCHANGES
+
+    if args.list_exchanges:
+        print("Supported exchanges:", ", ".join(SUPPORTED_EXCHANGES))
+        return
+
+    if args.reset:
+        cp = Path(args.checkpoint)
+        if cp.exists():
+            cp.unlink()
+            logging.getLogger(__name__).info("Checkpoint deleted: %s", cp)
+
+    config = build_futures_config(args)
+    pipeline = FuturesPipeline(config)
+    pipeline.run()
+
+
 def main():
     p = argparse.ArgumentParser(
         description="Financial Web Scraper - search or deep-crawl modes",
@@ -955,6 +1248,12 @@ def main():
     nsm_parser.add_argument("--output-dir", default="fca_nsm_output")
     nsm_parser.add_argument("--resume", action="store_true")
 
+    # "futures" subcommand
+    futures_parser = subparsers.add_parser(
+        "futures", help="Scrape futures contract specifications from exchanges"
+    )
+    _add_futures_args(futures_parser)
+
     # "edinet-filings" subcommand
     edinet_parser = subparsers.add_parser(
         "edinet-filings", help="Download annual securities reports from EDINET (Japan)"
@@ -976,7 +1275,8 @@ def main():
     argv = sys.argv[1:]
     if argv and argv[0] not in (
         "search", "crawl", "transcripts", "patents", "supply-chain",
-        "sec-filings", "uk-filings", "fca-nsm", "edinet-filings", "-h", "--help",
+        "sec-filings", "uk-filings", "fca-nsm", "edinet-filings", "futures",
+        "-h", "--help",
     ):
         argv = ["search"] + argv
 
@@ -1047,6 +1347,8 @@ def main():
             max_filings_per_company=args.max_filings,
             resume=args.resume,
         )
+    elif args.command == "futures":
+        _run_futures(args)
     elif args.command == "edinet-filings":
         from .edinet_filings import download_edinet_filings
         api_key = args.edinet_api_key or os.environ.get("EDINET_API_KEY", "")
