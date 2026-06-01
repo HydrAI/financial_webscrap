@@ -133,6 +133,11 @@ def build_crawl_config(args):
         args, prefix="crawl"
     )
 
+    # Passing an explicit --pdf-dir/--html-dir implies raw saving.
+    pdf_dir_arg = getattr(args, "pdf_dir", None)
+    html_dir_arg = getattr(args, "html_dir", None)
+    save_raw = args.save_raw or bool(pdf_dir_arg) or bool(html_dir_arg)
+
     return CrawlConfig(
         urls_file=Path(args.urls_file),
         exclude_file=_resolve_exclude_file(args),
@@ -152,9 +157,9 @@ def build_crawl_config(args):
         checkpoint_file=Path(args.checkpoint),
         resume=args.resume,
         pdf_extractor=args.pdf_extractor,
-        save_raw=args.save_raw,
-        pdf_dir=out_dir / "pdfs" if args.save_raw else None,
-        html_dir=out_dir / "html" if args.save_raw else None,
+        save_raw=save_raw,
+        pdf_dir=(Path(pdf_dir_arg) if pdf_dir_arg else out_dir / "pdfs") if save_raw else None,
+        html_dir=(Path(html_dir_arg) if html_dir_arg else out_dir / "html") if save_raw else None,
         check_robots_txt=not args.no_robots,
         stealth=args.stealth,
         simple_fetch=getattr(args, "simple_fetch", False),
@@ -262,6 +267,10 @@ def _add_crawl_args(p: argparse.ArgumentParser):
                    help="Disable domain exclusion filtering entirely")
     p.add_argument("--save-raw", action="store_true",
                    help="Save raw documents (PDFs + HTML) to disk alongside text extraction")
+    p.add_argument("--pdf-dir", default=None,
+                   help="Dedicated directory for saved PDFs (default: <output>/pdfs). Implies --save-raw.")
+    p.add_argument("--html-dir", default=None,
+                   help="Dedicated directory for saved HTML (default: <output>/html). Implies --save-raw.")
     p.add_argument("--checkpoint", default=".crawl_checkpoint.json")
     p.add_argument("--resume", action="store_true")
     p.add_argument("--reset", action="store_true", help="Delete checkpoint before running (fresh start)")

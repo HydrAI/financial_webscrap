@@ -466,6 +466,9 @@ def _make_crawl_args(**overrides):
         "no_robots": False,
         "stealth": False,
         "pdf_extractor": "auto",
+        "save_raw": False,
+        "pdf_dir": None,
+        "html_dir": None,
     }
     defaults.update(overrides)
     return argparse.Namespace(**defaults)
