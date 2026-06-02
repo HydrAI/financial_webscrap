@@ -1,0 +1,53 @@
+# ML-in-futures-markets research-paper discovery queries (DDG).
+# Complements the arXiv+OpenAlex API pull: targets SSRN / journals / RePEc
+# and working papers the APIs under-cover. Covers deep learning, RL,
+# classical ML, and neural sequence models across commodity/index/rate futures.
+
+# --- Core topical (no site filter) ---
+machine learning futures price prediction research paper
+deep learning futures market forecasting paper
+reinforcement learning futures trading research
+machine learning commodity futures returns prediction
+deep reinforcement learning index futures trading
+neural network interest rate futures forecasting
+LSTM commodity futures price prediction
+transformer model futures market forecasting
+random forest futures price direction prediction
+support vector machine futures trading strategy
+gradient boosting futures returns forecasting
+convolutional neural network commodity price prediction
+machine learning algorithmic trading futures contracts
+ensemble learning futures market prediction
+
+# --- SSRN (working papers + finance journals) ---
+site:ssrn.com machine learning futures
+site:ssrn.com deep learning commodity futures
+site:ssrn.com reinforcement learning trading futures
+site:ssrn.com neural network futures price prediction
+site:papers.ssrn.com machine learning futures market
+
+# --- MDPI (open access; many ML-finance papers) ---
+site:mdpi.com machine learning futures price prediction
+site:mdpi.com deep learning commodity futures
+site:mdpi.com reinforcement learning futures trading
+
+# --- ScienceDirect / Elsevier ---
+site:sciencedirect.com machine learning futures price forecasting
+site:sciencedirect.com deep learning commodity futures prediction
+site:sciencedirect.com reinforcement learning futures trading
+
+# --- Springer ---
+site:link.springer.com machine learning futures market prediction
+site:link.springer.com deep learning futures price forecasting
+
+# --- RePEc / EconPapers (economics working papers) ---
+site:ideas.repec.org machine learning futures
+site:econpapers.repec.org deep learning commodity futures
+
+# --- Taylor & Francis / Wiley ---
+site:tandfonline.com machine learning futures trading
+site:onlinelibrary.wiley.com machine learning futures prediction
+
+# --- Semantic Scholar / ResearchGate landing pages ---
+site:semanticscholar.org machine learning futures price prediction
+site:researchgate.net deep learning futures market forecasting
