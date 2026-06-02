@@ -71,14 +71,17 @@ def _norm_title(t: str) -> str:
 
 # ---------------- arXiv ----------------
 
-def fetch_arxiv(max_per_query: int, delay: float) -> list[dict]:
-    ns = {"a": "http://www.w3.org/2005/Atom"}
-    records: dict[str, dict] = {}
-    # Pair a few high-signal methods with each market to bound query count.
+def default_arxiv_pairs() -> list[tuple[str, str]]:
     pairs = [(m, k) for m in METHODS for k in ("futures", "futures market")]
     pairs += [("reinforcement learning", "trading"),
               ("deep learning", "commodity price"),
               ("machine learning", "index futures")]
+    return pairs
+
+
+def fetch_arxiv(pairs: list[tuple[str, str]], max_per_query: int, delay: float) -> list[dict]:
+    ns = {"a": "http://www.w3.org/2005/Atom"}
+    records: dict[str, dict] = {}
     for method, market in pairs:
         q = f'all:"{method}" AND all:"{market}"'
         params = {
@@ -145,13 +148,13 @@ def _reconstruct_abstract(inv: dict | None) -> str:
     return " ".join(pos[i] for i in sorted(pos))
 
 
-def fetch_openalex(max_total: int, delay: float) -> list[dict]:
+def fetch_openalex(queries: list[str], max_total: int, delay: float) -> list[dict]:
     records: dict[str, dict] = {}
     per_page = 200
-    for query in OPENALEX_QUERIES:
+    for query in queries:
         cursor = "*"
         got = 0
-        while got < max_total // len(OPENALEX_QUERIES) + per_page:
+        while got < max_total // len(queries) + per_page:
             params = {
                 "search": query,
                 "per-page": per_page,
@@ -256,29 +259,8 @@ def dedupe(papers: list[dict]) -> list[dict]:
     return out
 
 
-def main():
-    ap = argparse.ArgumentParser()
-    ap.add_argument("--max-arxiv", type=int, default=100,
-                    help="Max results per arXiv query (default 100)")
-    ap.add_argument("--max-openalex", type=int, default=600,
-                    help="Approx total OpenAlex works to pull (default 600)")
-    ap.add_argument("--arxiv-delay", type=float, default=3.0)
-    ap.add_argument("--openalex-delay", type=float, default=1.0)
-    args = ap.parse_args()
-
-    OUT_DIR.mkdir(parents=True, exist_ok=True)
-    print("Fetching arXiv...")
-    arxiv = fetch_arxiv(args.max_arxiv, args.arxiv_delay)
-    print(f"arXiv: {len(arxiv)} unique papers\n")
-
-    print("Fetching OpenAlex...")
-    openalex = fetch_openalex(args.max_openalex, args.openalex_delay)
-    print(f"OpenAlex: {len(openalex)} unique papers\n")
-
-    papers = dedupe(arxiv + openalex)
-    print(f"Combined after cross-source dedupe: {len(papers)} papers")
-
-    # KG 8-col compatible record + paper metadata.
+def papers_to_df(papers: list[dict], source_tag: str) -> pd.DataFrame:
+    """Build a KG 8-col-compatible DataFrame (+ paper metadata) from records."""
     rows = []
     for p in papers:
         abstract = p["abstract"]
@@ -290,7 +272,7 @@ def main():
             "date": p["date"],
             "source": p["source"],
             "full_text": abstract,        # abstract for now; PDFs are a later pass
-            "source_file": f"{p['source']}_ml_futures",
+            "source_file": f"{p['source']}_{source_tag}",
             # --- paper metadata ---
             "authors": p["authors"],
             "year": p["year"],
@@ -303,7 +285,32 @@ def main():
             "openalex_id": p["openalex_id"],
         })
     df = pd.DataFrame(rows)
-    df = df[df["title"].str.len() > 0].reset_index(drop=True)
+    return df[df["title"].str.len() > 0].reset_index(drop=True)
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--max-arxiv", type=int, default=100,
+                    help="Max results per arXiv query (default 100)")
+    ap.add_argument("--max-openalex", type=int, default=600,
+                    help="Approx total OpenAlex works to pull (default 600)")
+    ap.add_argument("--arxiv-delay", type=float, default=3.0)
+    ap.add_argument("--openalex-delay", type=float, default=1.0)
+    args = ap.parse_args()
+
+    OUT_DIR.mkdir(parents=True, exist_ok=True)
+    print("Fetching arXiv...")
+    arxiv = fetch_arxiv(default_arxiv_pairs(), args.max_arxiv, args.arxiv_delay)
+    print(f"arXiv: {len(arxiv)} unique papers\n")
+
+    print("Fetching OpenAlex...")
+    openalex = fetch_openalex(OPENALEX_QUERIES, args.max_openalex, args.openalex_delay)
+    print(f"OpenAlex: {len(openalex)} unique papers\n")
+
+    papers = dedupe(arxiv + openalex)
+    print(f"Combined after cross-source dedupe: {len(papers)} papers")
+
+    df = papers_to_df(papers, "ml_futures")
 
     ts = datetime.now().strftime("%Y%m%d_%H%M%S")
     pq_path = OUT_DIR / f"ml_futures_papers_{ts}.parquet"
