@@ -73,15 +73,24 @@ def download(url: str, timeout: int) -> bytes | None:
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--input", default=str(INPUT))
+    ap.add_argument("--out", default="",
+                    help="Output parquet (default: <input stem w/o _clean>_fulltext.parquet)")
+    ap.add_argument("--pdf-dir", default=str(PDF_DIR),
+                    help="Dir for raw PDFs (default: research_papers/pdfs)")
     ap.add_argument("--delay", type=float, default=2.0)
     ap.add_argument("--timeout", type=int, default=40)
     ap.add_argument("--limit", type=int, default=0, help="Process only first N (0=all)")
     args = ap.parse_args()
 
+    in_path = Path(args.input)
+    out_pq = Path(args.out) if args.out else (
+        OUT / (in_path.stem.replace("_clean", "") + "_fulltext.parquet"))
+    pdf_dir = Path(args.pdf_dir)
+
     df = pd.read_parquet(args.input)
     if args.limit:
         df = df.head(args.limit).copy()
-    PDF_DIR.mkdir(parents=True, exist_ok=True)
+    pdf_dir.mkdir(parents=True, exist_ok=True)
     extractor = PDFExtractor()
 
     # Preserve the abstract; full_text currently holds it.
@@ -107,7 +116,7 @@ def main():
             time.sleep(args.delay)
             continue
         fname = safe_name(row)
-        (PDF_DIR / fname).write_bytes(data)
+        (pdf_dir / fname).write_bytes(data)
         ex = extractor.extract(data, url)
         if ex.extraction_method != "failed" and len(ex.text) >= MIN_FULLTEXT_CHARS:
             df.at[idx, "full_text"] = ex.text          # replace abstract w/ full text
@@ -125,12 +134,8 @@ def main():
                   f"extract-fail {n_extractfail} | no-link {n_nolink}", flush=True)
         time.sleep(args.delay)
 
-    # Reorder so abstract sits next to full_text.
-    cols = list(df.columns)
-    out_pq = OUT / "papers_tierB_futures_fulltext.parquet"
     df.to_parquet(out_pq, index=False)
-    df.to_json(OUT / "papers_tierB_futures_fulltext.jsonl",
-               orient="records", lines=True, force_ascii=False)
+    df.to_json(out_pq.with_suffix(".jsonl"), orient="records", lines=True, force_ascii=False)
 
     print(f"\n=== Done ===")
     print(f"Papers: {total}")
@@ -139,7 +144,7 @@ def main():
     print(f"  extract failed: {n_extractfail}")
     print(f"  no PDF link: {n_nolink}")
     print(f"  (all {total} keep their abstract; {total-n_ok} fall back to abstract as full_text)")
-    print(f"Raw PDFs: {PDF_DIR}")
+    print(f"Raw PDFs: {pdf_dir}")
     print(f"Output: {out_pq}")
 
 
