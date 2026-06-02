@@ -60,13 +60,31 @@ OFFDOMAIN_RE = (
     r"adaptive policy pathway|scenario planning|strategic foresight"
 )
 
-# Explicit futures-asset-class signal.
+# Explicit futures-AS-AN-ASSET-CLASS signal. A bare "futures" token is too
+# loose (it matched "futures company", or a passing mention in a generic
+# algorithmic-trading abstract), so we require a qualified asset phrase and
+# apply it to the TITLE — the paper must be *about* a futures series, not
+# merely mention one.
 FUTURES_RE = (
-    r"\bfutures\b|commodity futures|index futures|stock index futures|"
-    r"bond futures|treasury futures|interest rate futures|financial futures|"
-    r"\bvix futures\b|crude oil futures|gold futures|copper futures|"
-    r"futures contract|futures market|futures price|futures return|"
-    r"futures volatility|term structure of futures|continuous futures"
+    r"futures price|futures market|futures contract|futures return|"
+    r"futures volatilit|futures trading|futures curve|futures hedg|"
+    r"futures spread|term structure of futures|continuous futures|rolling futures|"
+    r"index futures|stock index futures|equity futures|financial futures|"
+    r"bond futures|treasury futures|interest[ -]rate futures|currency futures|"
+    r"fx futures|commodity futures|agricultural futures|metal futures|"
+    r"energy futures|crude[ -]?oil futures|oil futures|natural gas futures|"
+    r"gas futures|gold futures|silver futures|copper futures|nickel futures|"
+    r"alumin\w+ futures|zinc futures|iron ore futures|coal futures|"
+    r"carbon futures|soybean futures|corn futures|wheat futures|cotton futures|"
+    r"sugar futures|coffee futures|livestock futures|cattle futures|"
+    r"vix futures|vstoxx futures|bitcoin futures|crypto\w* futures|"
+    r"csi 300 futures|s&p 500 futures|s&amp;p 500 futures|nikkei futures|"
+    r"\w+ futures contract"
+)
+# Institutional 'futures' senses that are NOT the asset class.
+FUTURES_INSTITUTIONAL_RE = (
+    r"futures company|futures broker|futures commission|futures association|"
+    r"futures industry"
 )
 
 
@@ -89,8 +107,12 @@ def main():
     is_fut = blob.str.contains(FUTURES_RE, regex=True)
 
     tierA = df[is_ml & is_fin & ~is_off].copy()
-    # Tier B is a strict subset of A.
-    tierB = tierA[_blob(tierA).str.contains(FUTURES_RE, regex=True)].copy()
+    # Tier B is a strict subset of A: an explicit futures-asset phrase must
+    # appear in the TITLE (so the paper is *about* futures, not merely
+    # mentioning them), and not in the institutional sense.
+    t = tierA["title"].fillna("").str.lower()
+    tierB = tierA[t.str.contains(FUTURES_RE, regex=True)
+                  & ~t.str.contains(FUTURES_INSTITUTIONAL_RE, regex=True)].copy()
 
     for name, sub in (("papers_tierA_financial", tierA), ("papers_tierB_futures", tierB)):
         sub = sub.sort_values("citations", ascending=False).reset_index(drop=True)
