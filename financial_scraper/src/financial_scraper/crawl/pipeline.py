@@ -119,6 +119,7 @@ class CrawlPipeline:
                     )
                 else:
                     strategy = build_crawl_strategy(
+                        seed_url=seed_url,
                         max_depth=self._config.max_depth,
                         max_pages=self._config.max_pages,
                     )
@@ -416,7 +417,26 @@ class CrawlPipeline:
                     if resp.status != 200:
                         logger.warning(f"PDF download failed ({resp.status}): {url}")
                         return None
-                    return await resp.read()
+                    data = await resp.read()
+                    # Many official sites answer a direct PDF GET with a 200 HTML
+                    # error/redirect page (anti-bot). Verify it's really a PDF so
+                    # we don't pollute the raw store with HTML saved as ".pdf".
+                    content_type = resp.headers.get("content-type", "").lower()
+                    if not self._looks_like_pdf(data, content_type):
+                        logger.warning(
+                            f"PDF download returned non-PDF content "
+                            f"(content-type={content_type or '?'}): {url}"
+                        )
+                        return None
+                    return data
         except Exception as e:
             logger.warning(f"PDF download error for {url}: {e}")
             return None
+
+    @staticmethod
+    def _looks_like_pdf(data: bytes, content_type: str) -> bool:
+        """True if the payload is actually a PDF (magic header), not HTML."""
+        if "text/html" in content_type:
+            return False
+        # A PDF must begin with "%PDF-" (allow a small BOM/whitespace lead-in).
+        return b"%PDF-" in data[:1024]
