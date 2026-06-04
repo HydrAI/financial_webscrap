@@ -18,6 +18,7 @@ Ethical, modular web scraper for financial research. Four modes: DuckDuckGo sear
 - **Content deduplication**, URL normalization + SHA256 exact hash + MinHash LSH fuzzy near-duplicate detection
 - **Patent data acquisition**, discover and fetch patent metadata and full text by assignee, topic, or classification (Google Patents XHR, PatentsView bulk, DuckDuckGo, Justia). Supports CPC/IPC/WIPO filtering, batch targets via JSON config
 - **Earnings transcripts**, download structured earnings call transcripts by ticker from 5 sources (Motley Fool, AlphaStreet, Seeking Alpha via Wayback, Motley Fool via Wayback). Covers 2007-2026 with 27,800+ transcripts across 1,425 tickers (94% of US10002 universe). Two-round quality pipeline ensures clean data (0 artifacts, 0 misassignments)
+- **Research-paper corpora**, build curated academic corpora from the arXiv + OpenAlex APIs (relevance-filtered, full-text PDFs, KG-chunked) and auto-generate a taxonomy + chronological literature review as a PDF with BibTeX. See [Research-Paper Corpora](#research-paper-corpora-arxiv--openalex)
 - **Checkpoint/resume**, atomic saves after each query, crash recovery
 - **Fingerprint rotation**, 5 browser profiles to reduce bot detection
 - **Parquet + JSONL output**, columnar storage with snappy compression
@@ -190,6 +191,58 @@ financial-scraper --queries-file queries.txt --resume --output-dir ./runs
 # JSONL + Markdown output alongside Parquet
 financial-scraper --queries-file queries.txt --output-dir ./runs --jsonl --markdown
 ```
+
+---
+
+## Research-Paper Corpora (arXiv + OpenAlex)
+
+Beyond the CLI subcommands, `financial_scraper/scripts/` contains a standalone
+pipeline for building **curated academic-paper corpora** on a research topic from
+the free **arXiv** and **OpenAlex** APIs (no keys; OpenAlex uses the polite pool),
+with relevance filtering, full-text PDF download, KG reshaping, and automated
+literature-review generation. Three corpora have been built with it: ML-in-futures
+(155 papers), CTA / managed-futures / trend-following (227), and NLP equity
+sentiment (1,172).
+
+These are run with the project's Python (not the `financial-scraper` CLI) and share
+the same 8-column Parquet schema as the rest of the project, plus paper metadata
+(`authors`, `year`, `venue`, `doi`, `citations`, `pdf_url`, `arxiv_id`).
+
+| Script | Purpose |
+|--------|---------|
+| `_fetch_research_papers.py` | Fetch ML-in-futures papers (arXiv + OpenAlex), cross-source dedupe, two-tier relevance filter. Query-parameterized engine reused by the topic fetchers below. |
+| `_fetch_cta_papers.py` | CTA / managed-futures / trend-following corpus. |
+| `_fetch_sentiment_papers.py` | NLP-sentiment-for-equities corpus. |
+| `_filter_papers.py` | Two-tier narrowing: financial → futures-asset-class (title-verified). |
+| `_download_paper_pdfs.py` | Download + extract full-text PDFs (abstract preserved; `--out`/`--pdf-dir`). |
+| `_reshape_research_papers.py` | Reshape corpora into 5000-char chunked KG parquets, year-partitioned. |
+| `_zip_readable_pdfs.py` | Bundle PDFs into zips with `<year>_<title>.pdf` names. |
+| `_taxonomy_equity_sentiment.py` | Multi-label classify by method / source / target → Markdown literature map. |
+| `_build_sentiment_report.py` | Combine reviews into one PDF + BibTeX (needs `markdown`, `xhtml2pdf`). |
+
+### Example workflow
+
+```bash
+# 1. Build a topic corpus (arXiv + OpenAlex) with relevance filter
+python financial_scraper/scripts/_fetch_sentiment_papers.py
+
+# 2. Download full-text PDFs (abstract kept; full_text = PDF text where reachable)
+python financial_scraper/scripts/_download_paper_pdfs.py \
+    --input research_papers/equity_sentiment_papers_<ts>_clean.parquet \
+    --pdf-dir research_papers/pdfs_equity_sentiment
+
+# 3. Reshape into KG 8-col chunks  ->  kg_input_research_papers/<corpus>/
+python financial_scraper/scripts/_reshape_research_papers.py
+
+# 4. Literature map + combined PDF report with BibTeX
+python financial_scraper/scripts/_taxonomy_equity_sentiment.py
+python financial_scraper/scripts/_build_sentiment_report.py
+```
+
+Outputs land in `research_papers/` (corpus + `*_fulltext.parquet`, PDFs under
+`pdfs_*/`, `*.bib`, review `.md`, and the combined `.pdf`) and
+`kg_input_research_papers/<corpus>/`. Data artifacts stay local (gitignored by
+convention); only the scripts are tracked.
 
 ---
 
