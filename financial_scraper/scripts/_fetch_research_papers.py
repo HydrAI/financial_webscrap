@@ -91,12 +91,22 @@ def fetch_arxiv(pairs: list[tuple[str, str]], max_per_query: int, delay: float) 
             "sortBy": "relevance",
             "sortOrder": "descending",
         }
-        try:
-            r = requests.get(ARXIV_API, params=params, timeout=30)
-            r.raise_for_status()
-        except requests.RequestException as e:
-            print(f"  arXiv query failed ({method}/{market}): {e}")
-            time.sleep(delay)
+        # arXiv rate-limits aggressively (HTTP 429); retry with backoff.
+        r = None
+        for attempt in range(5):
+            try:
+                r = requests.get(ARXIV_API, params=params, timeout=30)
+                if r.status_code == 429:
+                    raise requests.HTTPError("429 Too Many Requests")
+                r.raise_for_status()
+                break
+            except requests.RequestException as e:
+                wait = delay * (2 ** attempt)
+                print(f"  arXiv retry {attempt+1}/5 ({method}/{market}) in {wait:.0f}s: {e}")
+                time.sleep(wait)
+                r = None
+        if r is None:
+            print(f"  arXiv query gave up ({method}/{market})")
             continue
         root = ET.fromstring(r.text)
         n = 0
