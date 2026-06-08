@@ -104,6 +104,14 @@ def main():
     print(f"{fc_zip.name}: {nf+nc} PDFs (ml_futures={nf}, cta={nc}) "
           f"({fc_zip.stat().st_size/1_048_576:.1f} MB)")
 
+    # --- KG / GNN for equities ---
+    kg_map = build_map(latest("kg_equities_papers_*_fulltext.parquet"))
+    if (PAPERS / "pdfs_kg_equities").exists():
+        kg_zip = PAPERS / "kg_equities_paper_pdfs.zip"
+        with zipfile.ZipFile(kg_zip, "w", zipfile.ZIP_DEFLATED) as z:
+            nk = zip_corpus(z, PAPERS / "pdfs_kg_equities", "kg_equities", kg_map)
+        print(f"{kg_zip.name}: {nk} PDFs ({kg_zip.stat().st_size/1_048_576:.1f} MB)")
+
     # show a few example readable names
     print("\nExamples:")
     for k in list(es_map)[:6]:
