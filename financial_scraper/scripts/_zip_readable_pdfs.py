@@ -83,6 +83,23 @@ def zip_corpus(z: zipfile.ZipFile, pdf_dir: Path, folder: str, name_map: dict[st
     return n
 
 
+def zip_subset(z, pdf_dir, folder, name_map):
+    """Like zip_corpus but only includes PDFs whose basename is in name_map
+    (used to carve a focused sub-corpus out of a shared PDF directory)."""
+    used, n = set(), 0
+    for f in sorted(pdf_dir.glob("*.pdf")):
+        if f.name not in name_map:
+            continue
+        nice = name_map[f.name]
+        stem, cand, i = nice[:-4], nice, 2
+        while f"{folder}/{cand}" in used:
+            cand = f"{stem}__{i}.pdf"; i += 1
+        used.add(f"{folder}/{cand}")
+        z.write(f, arcname=f"{folder}/{cand}")
+        n += 1
+    return n
+
+
 def main():
     # --- equity sentiment ---
     es_map = build_map(latest("equity_sentiment_papers_*_fulltext.parquet"))
@@ -119,6 +136,20 @@ def main():
         with zipfile.ZipFile(ga_zip, "w", zipfile.ZIP_DEFLATED) as z:
             ng = zip_corpus(z, PAPERS / "pdfs_ga_ml", "ga_ml", ga_map)
         print(f"{ga_zip.name}: {ng} PDFs ({ga_zip.stat().st_size/1_048_576:.1f} MB)")
+
+    # --- factor alpha: broad corpus + focused (combination/weighting) subset ---
+    if (PAPERS / "pdfs_factor_alpha").exists():
+        fa_map = build_map(latest("factor_alpha_papers_*_fulltext.parquet"))
+        fa_zip = PAPERS / "factor_alpha_paper_pdfs.zip"
+        with zipfile.ZipFile(fa_zip, "w", zipfile.ZIP_DEFLATED) as z:
+            nb = zip_corpus(z, PAPERS / "pdfs_factor_alpha", "factor_alpha", fa_map)
+        print(f"{fa_zip.name}: {nb} PDFs ({fa_zip.stat().st_size/1_048_576:.1f} MB)")
+
+        fc_map = build_map(latest("factor_alpha_combine_papers_*_fulltext.parquet"))
+        fc_zip = PAPERS / "factor_alpha_combine_paper_pdfs.zip"
+        with zipfile.ZipFile(fc_zip, "w", zipfile.ZIP_DEFLATED) as z:
+            nfc = zip_subset(z, PAPERS / "pdfs_factor_alpha", "factor_alpha_combine", fc_map)
+        print(f"{fc_zip.name}: {nfc} PDFs ({fc_zip.stat().st_size/1_048_576:.1f} MB)")
 
     # show a few example readable names
     print("\nExamples:")
