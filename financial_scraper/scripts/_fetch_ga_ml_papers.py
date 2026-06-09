@@ -57,31 +57,51 @@ OPENALEX_QUERIES = [
     "genetic algorithm random forest feature selection",
 ]
 
-# Relevance: an evolutionary/GA term AND an ML term; drop biology-genetics.
+# Relevance (finance-scoped, GA-specific): a genuine GA/genetic-programming/
+# neuroevolution term AND an ML term AND a finance/markets term; drop biology
+# and swarm-only (PSO/ACO) papers that aren't actually genetic algorithms.
 GA_RE = (
-    r"genetic algorithm|genetic programming|evolutionary algorithm|"
-    r"evolutionary computation|neuroevolution|differential evolution|"
-    r"memetic algorithm|evolution strateg|\bnsga\b|evolutionary optimi"
+    r"genetic algorithm|genetic programming|neuroevolution|\bnsga\b|"
+    r"memetic algorithm|differential evolution|evolution strateg|"
+    r"evolutionary algorithm|evolutionary computation"
 )
+GA_CORE_RE = r"genetic algorithm|genetic programming|neuroevolution|\bnsga\b"
 ML_RE = (
     r"machine learning|deep learning|neural network|\bsvm\b|support vector|"
     r"random forest|\bcnn\b|\blstm\b|\bgru\b|classifier|classification|"
     r"feature selection|hyperparameter|gradient boost|xgboost|model training|"
-    r"architecture search|ensemble|regression model|clustering|reinforcement learning"
+    r"architecture search|ensemble|regression model|reinforcement learning|\bann\b"
+)
+FIN_RE = (
+    r"stock|\bequit|financial|finance|trading|trader|portfolio|investment|"
+    r"credit (?:risk|scoring)|bankruptcy|fraud detection|exchange rate|forex|"
+    r"commodit|futures|option pric|derivative|bitcoin|crypto|asset pric|"
+    r"volatilit|return predict|market (?:prediction|forecast)|economic forecast|"
+    r"loan default|insurance|risk management|price (?:prediction|forecast)"
+)
+# Swarm / non-GA metaheuristics — keep only if a real GA term is also present.
+SWARM_RE = (
+    r"particle swarm|swarm intelligence|ant colony|bee colony|firefly algorithm|"
+    r"grey wolf|whale optimization|biogeography|cuckoo search|bat algorithm|"
+    r"harmony search"
 )
 OFF_RE = (
-    r"\bgenome\b|dna sequenc|protein structure|protein folding|gene expression profil|"
-    r"crop breeding|plant breeding|genetic disorder|gene therapy|"
-    r"genetic variant|genetic diversity of|population genetics"
+    r"\bgenome\b|dna sequenc|protein structure|protein folding|gene expression|"
+    r"gene selection|microarray|crop breeding|plant breeding|genetic disorder|"
+    r"gene therapy|population genetics|species distribution|\becolog|remote sensing|"
+    r"\bmedical\b|clinical|patient|disease diagnos"
 )
 
 
 def ga_filter(df: pd.DataFrame) -> pd.DataFrame:
     blob = (df["title"].fillna("") + " " + df["full_text"].fillna("")
             + " " + df["categories"].fillna("")).str.lower()
-    keep = (blob.str.contains(GA_RE, regex=True)
-            & blob.str.contains(ML_RE, regex=True)
-            & ~blob.str.contains(OFF_RE, regex=True))
+    ga = blob.str.contains(GA_RE, regex=True)
+    ml = blob.str.contains(ML_RE, regex=True)
+    fin = blob.str.contains(FIN_RE, regex=True)
+    bio = blob.str.contains(OFF_RE, regex=True)
+    swarm_only = blob.str.contains(SWARM_RE, regex=True) & ~blob.str.contains(GA_CORE_RE, regex=True)
+    keep = ga & ml & fin & ~bio & ~swarm_only
     return df[keep].sort_values("citations", ascending=False).reset_index(drop=True)
 
 

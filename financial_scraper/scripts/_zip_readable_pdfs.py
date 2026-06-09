@@ -112,6 +112,14 @@ def main():
             nk = zip_corpus(z, PAPERS / "pdfs_kg_equities", "kg_equities", kg_map)
         print(f"{kg_zip.name}: {nk} PDFs ({kg_zip.stat().st_size/1_048_576:.1f} MB)")
 
+    # --- Genetic algorithms in ML (finance-scoped) ---
+    ga_map = build_map(latest("ga_ml_papers_*_fulltext.parquet"))
+    if (PAPERS / "pdfs_ga_ml").exists():
+        ga_zip = PAPERS / "ga_ml_paper_pdfs.zip"
+        with zipfile.ZipFile(ga_zip, "w", zipfile.ZIP_DEFLATED) as z:
+            ng = zip_corpus(z, PAPERS / "pdfs_ga_ml", "ga_ml", ga_map)
+        print(f"{ga_zip.name}: {ng} PDFs ({ga_zip.stat().st_size/1_048_576:.1f} MB)")
+
     # show a few example readable names
     print("\nExamples:")
     for k in list(es_map)[:6]:
