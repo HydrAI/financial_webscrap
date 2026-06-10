@@ -147,8 +147,13 @@ def main():
 
         fc_map = build_map(latest("factor_alpha_combine_papers_*_fulltext.parquet"))
         fc_zip = PAPERS / "factor_alpha_combine_paper_pdfs.zip"
+        # Prefer the dedicated focused PDF dir (augmented corpus, incl. regularization
+        # papers); fall back to carving the subset out of the broad dir.
         with zipfile.ZipFile(fc_zip, "w", zipfile.ZIP_DEFLATED) as z:
-            nfc = zip_subset(z, PAPERS / "pdfs_factor_alpha", "factor_alpha_combine", fc_map)
+            if (PAPERS / "pdfs_factor_alpha_combine").exists():
+                nfc = zip_corpus(z, PAPERS / "pdfs_factor_alpha_combine", "factor_alpha_combine", fc_map)
+            else:
+                nfc = zip_subset(z, PAPERS / "pdfs_factor_alpha", "factor_alpha_combine", fc_map)
         print(f"{fc_zip.name}: {nfc} PDFs ({fc_zip.stat().st_size/1_048_576:.1f} MB)")
 
     # show a few example readable names
