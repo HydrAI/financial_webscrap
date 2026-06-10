@@ -156,6 +156,14 @@ def main():
                 nfc = zip_subset(z, PAPERS / "pdfs_factor_alpha", "factor_alpha_combine", fc_map)
         print(f"{fc_zip.name}: {nfc} PDFs ({fc_zip.stat().st_size/1_048_576:.1f} MB)")
 
+    # --- systematic / quant macro ---
+    if (PAPERS / "pdfs_quant_macro").exists():
+        qm_map = build_map(latest("quant_macro_papers_*_fulltext.parquet"))
+        qm_zip = PAPERS / "quant_macro_paper_pdfs.zip"
+        with zipfile.ZipFile(qm_zip, "w", zipfile.ZIP_DEFLATED) as z:
+            nq = zip_corpus(z, PAPERS / "pdfs_quant_macro", "quant_macro", qm_map)
+        print(f"{qm_zip.name}: {nq} PDFs ({qm_zip.stat().st_size/1_048_576:.1f} MB)")
+
     # show a few example readable names
     print("\nExamples:")
     for k in list(es_map)[:6]:
