@@ -40,6 +40,11 @@ ARXIV_PAIRS = [
     ("alpha combination", "trading"), ("composite factor", "stock"),
     ("stock selection", "multi-factor"), ("factor timing", "equity"),
     ("characteristics", "cross-section of returns"),
+    # regularization / shrinkage / high-dimensional factor selection
+    ("lasso", "stock returns"), ("elastic net", "cross-section of returns"),
+    ("regularization", "factor model"), ("shrinkage", "cross-section of returns"),
+    ("high-dimensional", "asset pricing"), ("machine learning", "cross-section of returns"),
+    ("variable selection", "stock returns"),
 ]
 
 OPENALEX_QUERIES = [
@@ -55,6 +60,14 @@ OPENALEX_QUERIES = [
     "machine learning factor model equity returns",
     "composite alpha factor construction stock",
     "factor timing rotation equity",
+    "shrinking the cross-section stock returns",
+    "lasso factor selection expected stock returns",
+    "elastic net cross-section of returns",
+    "taming the factor zoo test of new factors",
+    "high-dimensional factor model stock returns",
+    "empirical asset pricing machine learning characteristics",
+    "sparse stochastic discount factor",
+    "dissecting characteristics nonparametrically",
 ]
 
 # A factor-investing-specific term AND an equity/returns term; drop the
@@ -65,7 +78,10 @@ FACTOR_RE = (
     r"\bic[- ]weight|\bicir\b|information ratio|signal combination|"
     r"alpha (?:signal|combination|blend|model)|cross[- ]section(?:al)?|"
     r"characteristic|anomal|factor zoo|composite (?:factor|alpha)|"
-    r"factor timing|factor selection|factor portfolio|risk premia|factor premia"
+    r"factor timing|factor selection|factor portfolio|risk premia|factor premia|"
+    r"\blasso\b|ridge regression|\belastic net\b|\bshrinkage\b|regulari[sz]|"
+    r"penaliz|variable selection|stochastic discount factor|high[- ]dimensional|"
+    r"empirical asset pricing via machine|taming the factor zoo|dissecting characteristics"
 )
 EQUITY_RE = (
     r"stock|\bequit|expected return|cross[- ]section of (?:stock )?returns|"

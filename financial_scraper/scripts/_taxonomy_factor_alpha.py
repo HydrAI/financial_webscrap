@@ -26,7 +26,8 @@ WEIGHTING = [
     ("Weighting scheme", "Optimization (mean-variance / max-IR)", r"mean[- ]variance|portfolio optimi|maximi[sz].{0,18}(?:information ratio|sharpe)|max(?:imum)? sharpe"),
     ("Weighting scheme", "ML-based weighting", r"machine learning|xgboost|gradient boost|neural network|deep learning|random forest|lightgbm"),
     ("Weighting scheme", "Regression / Fama-MacBeth", r"\bregression|fama[- ]?macbeth|cross[- ]sectional regression"),
-    ("Weighting scheme", "Shrinkage / Bayesian", r"shrinkage|bayesian|\bridge\b|\blasso\b|elastic net|regulari[sz]"),
+    ("Weighting scheme", "Regularized (Lasso / Ridge / Elastic-net)", r"\blasso\b|ridge regression|\belastic net\b|penaliz|regulari[sz]|variable selection|adaptive group lasso"),
+    ("Weighting scheme", "Bayesian / shrinkage", r"\bshrinkage\b|bayesian|empirical bayes|\bstein\b"),
 ]
 COMBINATION = [
     ("Combination approach", "Linear composite / scoring", r"composite|scoring|\bscore\b|linear combination|weighted sum|z-?score|standardi[sz]e"),
@@ -34,6 +35,7 @@ COMBINATION = [
     ("Combination approach", "Ensemble / stacking", r"ensemble|stacking|bagging|boosting"),
     ("Combination approach", "Dynamic / conditional / timing", r"dynamic|conditional|factor timing|regime|time[- ]varying|adaptive|rotation"),
     ("Combination approach", "Nonlinear / interactions", r"nonlinear|interaction effect|deep learning|neural network"),
+    ("Combination approach", "High-dimensional / ML asset pricing", r"high[- ]dimensional|empirical asset pricing via machine|stochastic discount factor|\bsparse\b|taming the factor zoo|dissecting characteristics|many (?:factors|characteristics|anomalies)"),
 ]
 FACTORS = [
     ("Factor styles", "Value", r"\bvalue\b|book[- ]to[- ]market|earnings yield|\bb/m\b|valuation"),
