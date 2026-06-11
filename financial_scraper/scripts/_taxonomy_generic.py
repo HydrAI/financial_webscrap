@@ -136,6 +136,25 @@ AXES = {
         ("Asset scope", "Equity factors / anomalies", r"\banomal|factor (?:return|premi|zoo|investing)|cross[- ]section of (?:stock )?returns|stock return"),
         ("Asset scope", "Multi-asset / macro", r"currenc|carry|bond|commodit|multi[- ]asset|cross[- ]asset"),
     ],
+    "short_interest": [
+        ("Signal / data", "Short interest ratio / days-to-cover", r"short interest (?:ratio)?|days[- ]to[- ]cover|short ratio|relative short interest|\bsir\b"),
+        ("Signal / data", "Shorting flow / daily short volume", r"short(?:ing|[- ]sale) (?:flow|volume)|daily short|short[- ]sale volume|order flow"),
+        ("Signal / data", "Securities lending / loan fees", r"securities lending|stock (?:loan|lending)|loan fee|lending fee|rebate rate|utilization|specialness|loan supply|lendable"),
+        ("Signal / data", "Failures-to-deliver / naked shorting", r"failures? to deliver|\bftd\b|naked short"),
+        ("Theme", "Return predictability / overpricing", r"return predictab|cross[- ]section of (?:stock )?returns|overpric|mispric|abnormal return|negative (?:abnormal )?return|underperform"),
+        ("Theme", "Informed trading / information content", r"informed (?:trad|short)|information content|private information|skilled short|short sellers? (?:are|anticipate|predict)"),
+        ("Theme", "Price discovery / market quality", r"price discovery|market quality|price efficien|informational efficien|liquidity|bid[- ]ask"),
+        ("Theme", "Short-sale constraints / divergence of opinion", r"short[- ]sale constraint|constrain|divergence of opinion|heterogeneous belief|disagreement|miller"),
+        ("Theme", "Short squeeze / retail / meme", r"short squeeze|meme stock|gamestop|\bgme\b|retail (?:investor|trad)|reddit|wallstreetbets"),
+        ("Theme", "Manipulation / bear raids / earnings management", r"manipulat|bear raid|earnings management|fraud|distort|predatory"),
+        ("Event / context", "Earnings announcements", r"earnings announcement|earnings news|post[- ]earnings|earnings surprise"),
+        ("Event / context", "Regulation / bans / Reg SHO", r"regulation sho|\breg sho\b|short[- ]sale (?:ban|restriction|price[- ]test)|uptick rule|naked.{0,10}ban|2008 ban|emergency"),
+        ("Event / context", "Options / derivatives interaction", r"\boption|put[- ]call|derivativ|warrant|convertible"),
+        ("Event / context", "Crisis / systemic", r"financial crisis|2008|systemic|fire[- ]sale|run\b"),
+        ("Asset scope", "Equity / single-name", r"stock|\bequit|single[- ]name|firm[- ]level|cross[- ]section"),
+        ("Asset scope", "ETF / aggregate / index", r"\betf\b|aggregate short|index|market[- ]wide|market return"),
+        ("Asset scope", "International / non-US", r"china|\beurope|\bjapan|\bkorea|emerging|cross[- ]countr|non[- ]us"),
+    ],
 }
 
 TITLES = {
@@ -145,6 +164,7 @@ TITLES = {
     "inst_ownership": "13F Institutional Ownership Disclosure & Equity Alpha",
     "factor_conditioning": "Conditioning & Interacting Equity Factors",
     "crowding": "Crowding in Equity Factors & Strategies",
+    "short_interest": "Short Interest & Short Selling in Equities",
 }
 
 

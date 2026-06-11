@@ -188,6 +188,14 @@ def main():
             ncr = zip_corpus(z, PAPERS / "pdfs_crowding", "crowding", cr_map)
         print(f"{cr_zip.name}: {ncr} PDFs ({cr_zip.stat().st_size/1_048_576:.1f} MB)")
 
+    # --- short interest / short selling in equities ---
+    if (PAPERS / "pdfs_short_interest").exists():
+        si_map = build_map(latest("short_interest_papers_*_fulltext.parquet"))
+        si_zip = PAPERS / "short_interest_paper_pdfs.zip"
+        with zipfile.ZipFile(si_zip, "w", zipfile.ZIP_DEFLATED) as z:
+            nsi = zip_corpus(z, PAPERS / "pdfs_short_interest", "short_interest", si_map)
+        print(f"{si_zip.name}: {nsi} PDFs ({si_zip.stat().st_size/1_048_576:.1f} MB)")
+
     # show a few example readable names
     print("\nExamples:")
     for k in list(es_map)[:6]:

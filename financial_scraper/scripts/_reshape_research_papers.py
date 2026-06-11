@@ -73,6 +73,7 @@ def main():
         (latest("inst_ownership_papers_*_fulltext.parquet"), "inst_ownership"),
         (latest("factor_conditioning_papers_*_fulltext.parquet"), "factor_conditioning"),
         (latest("crowding_papers_*_fulltext.parquet"), "crowding"),
+        (latest("short_interest_papers_*_fulltext.parquet"), "short_interest"),
     ]
     print(f"Reshaping research-paper corpora -> {OUT}")
     tot_p = tot_c = 0
