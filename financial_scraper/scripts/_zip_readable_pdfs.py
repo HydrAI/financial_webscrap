@@ -180,6 +180,14 @@ def main():
             nfd = zip_corpus(z, PAPERS / "pdfs_factor_conditioning", "factor_conditioning", fcd_map)
         print(f"{fcd_zip.name}: {nfd} PDFs ({fcd_zip.stat().st_size/1_048_576:.1f} MB)")
 
+    # --- crowding in equity factors / strategies ---
+    if (PAPERS / "pdfs_crowding").exists():
+        cr_map = build_map(latest("crowding_papers_*_fulltext.parquet"))
+        cr_zip = PAPERS / "crowding_paper_pdfs.zip"
+        with zipfile.ZipFile(cr_zip, "w", zipfile.ZIP_DEFLATED) as z:
+            ncr = zip_corpus(z, PAPERS / "pdfs_crowding", "crowding", cr_map)
+        print(f"{cr_zip.name}: {ncr} PDFs ({cr_zip.stat().st_size/1_048_576:.1f} MB)")
+
     # show a few example readable names
     print("\nExamples:")
     for k in list(es_map)[:6]:

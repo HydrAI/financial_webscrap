@@ -71,6 +71,9 @@ def main():
     ap.add_argument("--prefix", required=True, help="Corpus prefix, e.g. kg_equities")
     ap.add_argument("--title", required=True)
     ap.add_argument("--subtitle", default="A Structured & Chronological Literature Review")
+    ap.add_argument("--exec-summary", default=None,
+                    help="Optional markdown file prepended as an executive-summary front section")
+    ap.add_argument("--exec-title", default="Executive Summary — Practitioner Guidelines")
     args = ap.parse_args()
     p = args.prefix
 
@@ -102,7 +105,12 @@ def main():
     taxo_b = re.sub(r"^# .*\n", "", taxo, count=1)
     chrono_b = re.sub(r"^# .*\n", "", chrono, count=1)
     brk = '\n<div style="page-break-before:always"></div>\n\n'
-    combined = (title_block + brk + "# Part I — Literature Map\n\n" + taxo_b
+    exec_b = ""
+    if args.exec_summary:
+        ex = Path(args.exec_summary).read_text(encoding="utf-8")
+        ex = re.sub(r"^# .*\n", "", ex, count=1)  # drop its own H1; use --exec-title
+        exec_b = brk + f"# {args.exec_title}\n\n" + ex
+    combined = (title_block + exec_b + brk + "# Part I — Literature Map\n\n" + taxo_b
                 + brk + "# Part II — Chronological Review\n\n" + chrono_b
                 + brk + f"# References ({len(refs)} cited works)\n\n" + "\n".join(refs))
     body = md.markdown(combined, extensions=["tables", "fenced_code", "sane_lists"])

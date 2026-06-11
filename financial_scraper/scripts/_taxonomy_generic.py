@@ -120,6 +120,22 @@ AXES = {
         ("Application", "Factor timing / allocation", r"factor timing|factor allocation|factor rotation|timing strateg"),
         ("Application", "Multi-asset / macro", r"multi[- ]asset|cross[- ]asset|currenc|bond|commodit"),
     ],
+    "crowding": [
+        ("Crowding theme", "Capacity / anomaly decay", r"capacity (?:constraint|of|decay|limit)|arbitrage capacity|anomaly decay|post[- ]publication|out[- ]of[- ]sample (?:decay|decline)|predictability (?:decay|declin|disappear|attenuat)|destroy.{0,20}predictab"),
+        ("Crowding theme", "Crowded trades / unwinds", r"crowded trade|crowding|correlated (?:trading|liquidation|unwind)|unwind|quant (?:crisis|meltdown|quake)|fire[- ]?sale|deleverag|liquidation spiral"),
+        ("Crowding theme", "Limits to arbitrage", r"limits? to arbitrage|costly arbitrage|arbitrage (?:risk|cost|friction)|noise trader risk|idiosyncratic risk.{0,20}arbitrage"),
+        ("Crowding theme", "Momentum / strategy crashes", r"momentum crash|factor crash|strategy crash|drawdown|tail risk|crash risk"),
+        ("Measure of crowding", "Short interest / lending", r"short interest|short[- ]sale|securities lending|equity lending|utilization"),
+        ("Measure of crowding", "Ownership breadth / institutional overlap", r"breadth of ownership|ownership breadth|institutional (?:ownership|overlap|holding)|common ownership|13f"),
+        ("Measure of crowding", "Flows / hedge-fund positioning", r"fund flow|hedge fund (?:positioning|holding|overlap)|smart money flow|capital flow"),
+        ("Measure of crowding", "Valuation spreads / comovement", r"valuation spread|value spread|comovement|co[- ]movement|correlation (?:among|of)|return correlation"),
+        ("Mechanism", "Herding", r"herding|herd behavior|feedback trading"),
+        ("Mechanism", "Price impact / pressure", r"price (?:impact|pressure)|demand curve|downward[- ]sloping"),
+        ("Mechanism", "Arbitrage / hedge-fund capital", r"arbitrageur|hedge fund capital|intermediary|funding (?:constraint|liquidity)|leverage"),
+        ("Mechanism", "Publication / data-mining effect", r"publication|data[- ]mining|p[- ]hacking|multiple testing|out[- ]of[- ]sample|replicat"),
+        ("Asset scope", "Equity factors / anomalies", r"\banomal|factor (?:return|premi|zoo|investing)|cross[- ]section of (?:stock )?returns|stock return"),
+        ("Asset scope", "Multi-asset / macro", r"currenc|carry|bond|commodit|multi[- ]asset|cross[- ]asset"),
+    ],
 }
 
 TITLES = {
@@ -128,6 +144,7 @@ TITLES = {
     "ga_ml": "Genetic Algorithms in Financial Machine Learning",
     "inst_ownership": "13F Institutional Ownership Disclosure & Equity Alpha",
     "factor_conditioning": "Conditioning & Interacting Equity Factors",
+    "crowding": "Crowding in Equity Factors & Strategies",
 }
 
 
