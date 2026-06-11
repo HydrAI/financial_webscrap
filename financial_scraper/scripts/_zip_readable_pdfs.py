@@ -164,6 +164,22 @@ def main():
             nq = zip_corpus(z, PAPERS / "pdfs_quant_macro", "quant_macro", qm_map)
         print(f"{qm_zip.name}: {nq} PDFs ({qm_zip.stat().st_size/1_048_576:.1f} MB)")
 
+    # --- 13F institutional ownership disclosure & alpha ---
+    if (PAPERS / "pdfs_inst_ownership").exists():
+        io_map = build_map(latest("inst_ownership_papers_*_fulltext.parquet"))
+        io_zip = PAPERS / "inst_ownership_paper_pdfs.zip"
+        with zipfile.ZipFile(io_zip, "w", zipfile.ZIP_DEFLATED) as z:
+            ni = zip_corpus(z, PAPERS / "pdfs_inst_ownership", "inst_ownership", io_map)
+        print(f"{io_zip.name}: {ni} PDFs ({io_zip.stat().st_size/1_048_576:.1f} MB)")
+
+    # --- factor conditioning / interactions ---
+    if (PAPERS / "pdfs_factor_conditioning").exists():
+        fcd_map = build_map(latest("factor_conditioning_papers_*_fulltext.parquet"))
+        fcd_zip = PAPERS / "factor_conditioning_paper_pdfs.zip"
+        with zipfile.ZipFile(fcd_zip, "w", zipfile.ZIP_DEFLATED) as z:
+            nfd = zip_corpus(z, PAPERS / "pdfs_factor_conditioning", "factor_conditioning", fcd_map)
+        print(f"{fcd_zip.name}: {nfd} PDFs ({fcd_zip.stat().st_size/1_048_576:.1f} MB)")
+
     # show a few example readable names
     print("\nExamples:")
     for k in list(es_map)[:6]:

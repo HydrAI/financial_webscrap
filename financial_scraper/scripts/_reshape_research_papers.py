@@ -70,6 +70,8 @@ def main():
         (PAPERS / "papers_tierB_futures_fulltext.parquet", "ml_futures"),
         (latest("cta_trend_papers_*_fulltext.parquet"), "cta_trend"),
         (latest("equity_sentiment_papers_*_fulltext.parquet"), "equity_sentiment"),
+        (latest("inst_ownership_papers_*_fulltext.parquet"), "inst_ownership"),
+        (latest("factor_conditioning_papers_*_fulltext.parquet"), "factor_conditioning"),
     ]
     print(f"Reshaping research-paper corpora -> {OUT}")
     tot_p = tot_c = 0
