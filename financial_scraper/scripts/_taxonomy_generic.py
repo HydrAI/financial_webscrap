@@ -155,6 +155,25 @@ AXES = {
         ("Asset scope", "ETF / aggregate / index", r"\betf\b|aggregate short|index|market[- ]wide|market return"),
         ("Asset scope", "International / non-US", r"china|\beurope|\bjapan|\bkorea|emerging|cross[- ]countr|non[- ]us"),
     ],
+    "statarb": [
+        ("Method family", "Pairs trading (distance/cointegration/copula)", r"pairs?[- ]trading|pair trading|distance method|cointegrat\w* pair|copula"),
+        ("Method family", "Cointegration / error-correction", r"cointegrat\w+|error[- ]correction|\becm\b|johansen|engle[- ]granger"),
+        ("Method family", "Mean reversion / Ornstein-Uhlenbeck", r"mean[- ]revers\w+|mean[- ]revert\w+|ornstein[- ]uhlenbeck|\bou process\b"),
+        ("Method family", "Statistical / PCA factor stat-arb", r"eigenportfolio|principal component|\bpca\b|statistical factor|residual (?:reversal|return)|idiosyncratic momentum"),
+        ("Method family", "Machine learning / deep / RL", r"machine learning|deep learning|neural network|reinforcement learning|gradient boost|random forest|\blstm\b"),
+        ("Method family", "Optimal control / stopping / execution", r"stochastic control|optimal stopping|optimal (?:trading|execution|liquidation)|hamilton[- ]jacobi|free boundary|threshold (?:strateg|rule)"),
+        ("Signal construction", "Sparse / mean-reverting portfolio design", r"sparse|mean[- ]revert\w+ portfolio|portfolio selection|box[- ]tiao|predictability|canonical correlation"),
+        ("Signal construction", "Kalman / state-space / dynamic hedge", r"kalman|state[- ]space|dynamic hedge|time[- ]varying (?:hedge|beta)|particle filter"),
+        ("Signal construction", "Lead-lag / cross-predictability", r"lead[- ]lag|cross[- ]predict|lagged|granger"),
+        ("Signal construction", "Spread / relative-value / market-neutral", r"relative value|market[- ]neutral|long[- ]short|spread (?:trading|portfolio)|convergence"),
+        ("Asset / market", "US / global equities", r"\bstock|\bequit|s&p|cross[- ]section|single[- ]name"),
+        ("Asset / market", "Futures / index / commodities", r"futures|index arbitrage|commodit|calendar spread|stock index"),
+        ("Asset / market", "ETF / index products", r"\betf\b|exchange[- ]traded fund|authorized participant|index fund"),
+        ("Asset / market", "Crypto / FX", r"cryptocurrenc|bitcoin|crypto|foreign exchange|\bfx\b|currency"),
+        ("Cross-cutting", "High-frequency / microstructure", r"high[- ]frequency|intraday|microstructure|limit order|market making|latency"),
+        ("Cross-cutting", "Limits to arbitrage / risk", r"limits? (?:to|of) arbitrage|arbitrage risk|funding|noise trader|divergence risk|capacity"),
+        ("Cross-cutting", "Transaction costs / implementation", r"transaction cost|implementation|slippage|liquidity|turnover|profitab"),
+    ],
 }
 
 TITLES = {
@@ -165,6 +184,7 @@ TITLES = {
     "factor_conditioning": "Conditioning & Interacting Equity Factors",
     "crowding": "Crowding in Equity Factors & Strategies",
     "short_interest": "Short Interest & Short Selling in Equities",
+    "statarb": "Statistical Arbitrage Methodologies (Equities & Futures)",
 }
 
 

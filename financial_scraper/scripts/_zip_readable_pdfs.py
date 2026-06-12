@@ -196,6 +196,14 @@ def main():
             nsi = zip_corpus(z, PAPERS / "pdfs_short_interest", "short_interest", si_map)
         print(f"{si_zip.name}: {nsi} PDFs ({si_zip.stat().st_size/1_048_576:.1f} MB)")
 
+    # --- statistical arbitrage methodologies ---
+    if (PAPERS / "pdfs_statarb").exists():
+        sa_map = build_map(latest("statarb_papers_*_fulltext.parquet"))
+        sa_zip = PAPERS / "statarb_paper_pdfs.zip"
+        with zipfile.ZipFile(sa_zip, "w", zipfile.ZIP_DEFLATED) as z:
+            nsa = zip_corpus(z, PAPERS / "pdfs_statarb", "statarb", sa_map)
+        print(f"{sa_zip.name}: {nsa} PDFs ({sa_zip.stat().st_size/1_048_576:.1f} MB)")
+
     # show a few example readable names
     print("\nExamples:")
     for k in list(es_map)[:6]:
